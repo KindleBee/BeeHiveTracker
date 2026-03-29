@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>🐝 Hive — Life Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #1a1508;
+  --bg2:      #211c0a;
+  --surface:  #2a220d;
+  --surface2: #332b10;
+  --border:   #4a3d18;
+  --honey:    #f5a623;
+  --gold:     #f0c040;
+  --amber:    #c87820;
+  --cream:    #f5e6c0;
+  --muted:    #8a7548;
+  --text:     #f0e0b0;
+  --green:    #6dbf7c;
+  --red:      #e05555;
+  --star:     #f5c842;
+  --health:   #e8a040;
+  --learning: #60b8e8;
+  --exp:      #a870d8;
+  --r: 0.577; /* tan(30°) for hex */
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Nunito', sans-serif;
+  min-height: 100vh;
+  padding-bottom: 90px;
+  overflow-x: hidden;
+}
+
+/* ── HEX BACKGROUND PATTERN ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse at 20% 20%, rgba(245,166,35,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(200,120,32,0.04) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── HEADER ── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: linear-gradient(180deg, var(--bg) 80%, transparent);
+  padding: 20px 20px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.logo {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.hex-logo {
+  width: 36px; height: 36px;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.hex-logo svg { width: 36px; height: 36px; }
+
+.logo-text {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  color: var(--honey);
+  letter-spacing: -0.3px;
+}
+
+.logo-text span {
+  font-size: 11px;
+  display: block;
+  color: var(--muted);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 400;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: -3px;
+}
+
+.week-pill {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  text-align: right;
+}
+
+.week-pill b { color: var(--honey); display: block; font-size: 13px; letter-spacing: 0; }
+
+/* ── VIEWS ── */
+.view { display: none; padding: 16px 16px 0; position: relative; z-index: 1; }
+.view.active { display: block; }
+
+/* ── DAY ROW ── */
+.day-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.day-cell {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 3px;
+  text-align: center;
+}
+
+.day-cell.today { border-color: var(--honey); }
+.day-cell .dn { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.day-cell .dd { font-family: 'Playfair Display', serif; font-size: 17px; color: var(--text); margin-top: 1px; }
+.day-cell.today .dd { color: var(--honey); }
+
+/* ── SUNDAY PROMPT ── */
+.sunday-prompt {
+  background: linear-gradient(135deg, rgba(245,166,35,0.12), rgba(200,120,32,0.06));
+  border: 1px solid rgba(245,166,35,0.3);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  display: flex; align-items: center; gap: 12px;
+}
+
+.sunday-prompt .bee { font-size: 28px; }
+.sunday-prompt p { font-size: 12px; color: var(--text); line-height: 1.5; }
+.sunday-prompt p strong { color: var(--honey); }
+.sunday-prompt p em { color: var(--muted); font-style: normal; font-size: 11px; }
+
+/* ── CATEGORY SECTION ── */
+.cat-section { margin-bottom: 24px; }
+
+.cat-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cat-hex {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+
+.cat-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 18px;
+  flex: 1;
+}
+
+.cat-streak {
+  font-size: 11px;
+  color: var(--star);
+  letter-spacing: 0.5px;
+}
+
+/* ── GOAL CARDS ── */
+.goal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 10px;
+  border-left-width: 3px;
+  transition: all 0.2s;
+}
+
+.goal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.goal-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+
+.goal-icon { font-size: 20px; flex-shrink: 0; }
+
+.goal-info { flex: 1; min-width: 0; }
+
+.goal-name {
+  font-size: 15px; font-weight: 700;
+  color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.goal-meta { font-size: 10px; color: var(--muted); margin-top: 2px; letter-spacing: 0.5px; }
+
+.goal-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+.goal-count {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  color: var(--honey);
+  min-width: 24px;
+  text-align: center;
+}
+
+.icon-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 15px; padding: 5px; border-radius: 6px;
+  color: var(--muted); transition: all 0.15s;
+}
+.icon-btn:hover { background: var(--surface2); color: var(--text); }
+.icon-btn.active { color: var(--honey); }
+
+/* ── DAY DOTS ── */
+.day-dots {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.dot-wrap {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+}
+
+.dot-label { font-size: 7px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
+
+.dot-btn {
+  width: 100%; aspect-ratio: 1;
+  border-radius: 7px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  color: transparent;
+  position: relative;
+}
+
+.dot-btn::after {
+  content: '';
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.2s;
+}
+
+.dot-btn.done::after { background: var(--green); box-shadow: 0 0 8px rgba(109,191,124,0.5); }
+.dot-btn.today-dot { border-color: var(--honey); }
+.dot-btn.future { opacity: 0.3; cursor: default; }
+.dot-btn:active:not(.future) { transform: scale(0.88); }
+
+/* ── PROGRESS BAR ── */
+.progress-wrap { display: flex; align-items: center; gap: 8px; }
+.prog-bar { flex: 1; height: 4px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 3px; transition: width 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+.prog-label { font-size: 10px; color: var(--muted); white-space: nowrap; }
+
+/* ── ACHIEVEMENT BADGE ── */
+.ach-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; padding: 3px 8px;
+  border-radius: 12px; letter-spacing: 0.5px;
+  margin-left: 6px;
+}
+
+.ach-fail    { background: rgba(224,85,85,0.15);  color: var(--red);  border: 1px solid rgba(224,85,85,0.25); }
+.ach-met     { background: rgba(109,191,124,0.15); color: var(--green); border: 1px solid rgba(109,191,124,0.25); }
+.ach-exceed  { background: rgba(245,200,66,0.15);  color: var(--star); border: 1px solid rgba(245,200,66,0.25); }
+
+/* ── NOTE PANEL ── */
+.note-panel { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.note-panel.open { display: block; }
+
+.note-textarea {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  resize: none; outline: none;
+  line-height: 1.6; min-height: 68px;
+}
+
+.note-textarea:focus { border-color: var(--honey); }
+.note-textarea::placeholder { color: var(--muted); }
+
+.note-save {
+  margin-top: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Nunito', sans-serif;
+  font-size: 10px; letter-spacing: 1px;
+  padding: 6px 14px; border-radius: 8px;
+  cursor: pointer; text-transform: uppercase;
+  transition: all 0.15s;
+}
+.note-save:hover { border-color: var(--honey); color: var(--honey); }
+
+/* ── WEEKLY REVIEW / MIN ADJUST ── */
+.min-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.min-row:last-child { border-bottom: none; }
+.min-goal-name { font-size: 13px; font-weight: 600; flex: 1; }
+.min-goal-cat { font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+.min-controls { display: flex; align-items: center; gap: 10px; }
+.min-val { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--honey); min-width: 24px; text-align: center; }
+.min-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.min-btn:hover { border-color: var(--honey); color: var(--honey); }
+
+/* ── OVERVIEW / QUARTERLY ── */
+.ov-header { margin-bottom: 20px; }
+.ov-title { font-family: 'Playfair Display', serif; font-size: 24px; margin-bottom: 4px; }
+.ov-title span { color: var(--honey); font-style: italic; }
+.ov-sub { font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+
+.ov-tabs { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+.ov-tab {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); font-family: 'Nunito', sans-serif;
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 8px 14px; border-radius: 20px; cursor: pointer; transition: all 0.15s;
+}
+.ov-tab.active { border-color: var(--honey); color: var(--honey); background: rgba(245,166,35,0.08); }
+
+.ov-panel { display: none; }
+.ov-panel.active { display: block; }
+
+/* ── QUARTERLY SUMMARY ── */
+.q-cat-block { margin-bottom: 28px; }
+
+.q-cat-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.q-cat-title { font-family: 'Playfair Display', serif; font-size: 18px; flex: 1; }
+.q-cat-rate { font-size: 11px; }
+
+/* GOAL TIMELINE ROW */
+.q-goal-block { margin-bottom: 16px; }
+.q-goal-name { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+.q-goal-sub { font-size: 10px; color: var(--muted); }
+
+.q-week-grid {
+  display: flex; gap: 3px; flex-wrap: wrap;
+}
+
+.q-week-cell {
+  width: calc((100% - 12*3px) / 13);
+  aspect-ratio: 1;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px;
+  border: 1px solid transparent;
+  cursor: default;
+  position: relative;
+}
+
+.q-week-cell.wk-fail    { background: rgba(224,85,85,0.2);   border-color: rgba(224,85,85,0.3); }
+.q-week-cell.wk-met     { background: rgba(109,191,124,0.2); border-color: rgba(109,191,124,0.3); }
+.q-week-cell.wk-exceed  { background: rgba(245,200,66,0.2);  border-color: rgba(245,200,66,0.3); }
+.q-week-cell.wk-future  { background: var(--surface); opacity: 0.4; }
+.q-week-cell.wk-skip    { background: var(--surface); opacity: 0.4; } /* min=0 week */
+
+.q-stat-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.q-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; flex: 1; text-align: center; }
+.q-stat-val { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--honey); }
+.q-stat-label { font-size: 8px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
+
+/* ── PAST WEEKS VIEW ── */
+.past-week-item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px; margin-bottom: 10px;
+  cursor: pointer; transition: all 0.15s;
+}
+.past-week-item:hover { border-color: var(--honey); }
+.past-week-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.past-week-num { font-family: 'Playfair Display', serif; font-size: 16px; }
+.past-week-dates { font-size: 10px; color: var(--muted); }
+.past-week-achs { display: flex; gap: 6px; }
+.past-mini-goals { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+.past-mini { background: var(--surface2); border-radius: 8px; padding: 8px; text-align: center; }
+.past-mini-name { font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+.past-mini-val { font-size: 14px; }
+
+/* ── MODALS ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85); z-index: 300;
+  align-items: flex-end; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--honey);
+  border-radius: 22px 22px 0 0;
+  padding: 8px 0 0;
+  width: 100%; max-width: 500px;
+  animation: slideUp 0.28s cubic-bezier(0.34,1.56,0.64,1);
+  max-height: 85vh; overflow-y: auto;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.modal-handle {
+  width: 40px; height: 4px;
+  background: var(--border); border-radius: 3px;
+  margin: 0 auto 20px;
+}
+
+.modal-body { padding: 0 20px 36px; }
+.modal-title { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 20px; }
+.modal-title span { color: var(--honey); }
+
+.modal label {
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted); display: block; margin-bottom: 6px; margin-top: 16px;
+}
+.modal label:first-of-type { margin-top: 0; }
+
+.modal input, .modal select, .modal textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Nunito', sans-serif;
+  font-size: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  outline: none;
+}
+.modal input:focus, .modal select:focus, .modal textarea:focus { border-color: var(--honey); }
+.modal select option { background: var(--surface); }
+
+.modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+
+.btn-honey {
+  flex: 1; background: var(--honey); color: var(--bg);
+  border: none; font-family: 'Nunito', sans-serif;
+  font-size: 13px; font-weight: 700; padding: 14px;
+  border-radius: 12px; cursor: pointer; letter-spacing: 0.5px;
+  transition: opacity 0.15s;
+}
+.btn-honey:active { opacity: 0.85; }
+
+.btn-ghost {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--muted); font-family: 'Nunito', sans-serif;
+  font-size: 13px; padding: 14px 20px;
+  border-radius: 12px; cursor: pointer;
+}
+
+.btn-danger {
+  background: transparent; border: 1px solid rgba(224,85,85,0.4);
+  color: var(--red); font-family: 'Nunito', sans-serif;
+  font-size: 13px; padding: 14px 16px;
+  border-radius: 12px; cursor: pointer;
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 100px; left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: var(--honey); color: var(--bg);
+  font-size: 13px; font-weight: 700;
+  padding: 10px 22px; border-radius: 24px;
+  opacity: 0; transition: all 0.3s;
+  pointer-events: none; z-index: 400;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── BOTTOM NAV ── */
+.bnav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex; padding: 8px 0 22px; z-index: 200;
+}
+
+.bnav-btn {
+  flex: 1; background: none; border: none;
+  color: var(--muted); font-family: 'Nunito', sans-serif;
+  font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+  cursor: pointer; padding: 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  transition: color 0.15s;
+}
+.bnav-btn.active { color: var(--honey); }
+.bnav-icon { font-size: 20px; line-height: 1; }
+
+/* ── HEX DECORATIONS ── */
+.hex-deco {
+  position: fixed; pointer-events: none; z-index: 0;
+  opacity: 0.04;
+}
+
+/* ── SECTION DIVIDER ── */
+.section-div {
+  font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 12px;
+}
+
+/* ── STREAK PILL ── */
+.streak-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(245,200,66,0.1);
+  border: 1px solid rgba(245,200,66,0.25);
+  border-radius: 12px; padding: 2px 8px;
+  font-size: 10px; color: var(--star);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 360px) {
+  .q-week-cell { border-radius: 3px; }
+}
+
+/* ── SYNC ── */
+.sync-device-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(109,191,124,0.12);
+  border: 1px solid rgba(109,191,124,0.25);
+  border-radius: 20px; padding: 4px 12px;
+  font-size: 11px; color: var(--green);
+}
+</style>
+</head>
+<body>
+
+<!-- FIXED HEX BACKGROUND -->
+<svg class="hex-deco" style="top:-60px;right:-60px;width:280px;height:280px" viewBox="0 0 280 280">
+  <polygon points="140,10 270,80 270,200 140,270 10,200 10,80" fill="none" stroke="#f5a623" stroke-width="1"/>
+  <polygon points="140,40 240,98 240,202 140,240 40,202 40,98" fill="none" stroke="#f5a623" stroke-width="1"/>
+</svg>
+<svg class="hex-deco" style="bottom:80px;left:-80px;width:220px;height:220px" viewBox="0 0 220 220">
+  <polygon points="110,8 210,62 210,158 110,212 10,158 10,62" fill="none" stroke="#f5a623" stroke-width="1"/>
+</svg>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <svg width="32" height="32" viewBox="0 0 32 32">
+      <polygon points="16,2 29,9.5 29,22.5 16,30 3,22.5 3,9.5" fill="rgba(245,166,35,0.15)" stroke="#f5a623" stroke-width="1.5"/>
+      <text x="16" y="21" text-anchor="middle" font-size="14">🐝</text>
+    </svg>
+    <div class="logo-text">Hive<span>Life Tracker</span></div>
+  </div>
+  <div class="week-pill" id="weekPill">
+    <b id="weekNumDisp">W14</b>
+    <span id="weekDateDisp">30 Mar – 5 Apr</span>
+  </div>
+</header>
+
+<!-- ══ VIEW: WEEK ══ -->
+<div class="view active" id="view-week">
+  <div class="day-row" id="dayRow"></div>
+  <div id="sundayPrompt" style="display:none" class="sunday-prompt">
+    <div class="bee">🐝</div>
+    <p><strong>Sunday evening — review time.</strong><br>
+    <em>Check your week, then adjust minimums for next week via the Review tab.</em></p>
+  </div>
+  <div id="categoryBlocks"></div>
+</div>
+
+<!-- ══ VIEW: PAST WEEKS ══ -->
+<div class="view" id="view-past">
+  <div class="ov-header">
+    <div class="ov-title">Past <span>Weeks</span></div>
+    <div class="ov-sub" id="pastSubtitle"></div>
+  </div>
+  <div id="pastWeeksList"></div>
+</div>
+
+<!-- ══ VIEW: OVERVIEW ══ -->
+<div class="view" id="view-overview">
+  <div class="ov-header">
+    <div class="ov-title" id="ovTitle">Overview</div>
+    <div class="ov-sub" id="ovSub"></div>
+  </div>
+  <div class="ov-tabs" id="ovTabs"></div>
+  <div id="ovPanels"></div>
+</div>
+
+<!-- ══ VIEW: REVIEW (Sunday) ══ -->
+<div class="view" id="view-review">
+  <div class="ov-header">
+    <div class="ov-title">Weekly <span>Review</span></div>
+    <div class="ov-sub">Set minimums for next week</div>
+  </div>
+  <div id="reviewContent"></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bnav">
+  <button class="bnav-btn active" onclick="switchView('week',this)">
+    <span class="bnav-icon">🍯</span>This Week
+  </button>
+  <button class="bnav-btn" onclick="switchView('past',this)">
+    <span class="bnav-icon">📜</span>History
+  </button>
+  <button class="bnav-btn" onclick="switchView('overview',this)">
+    <span class="bnav-icon">🔭</span>Overview
+  </button>
+  <button class="bnav-btn" onclick="switchView('review',this)">
+    <span class="bnav-icon">✏️</span>Review
+  </button>
+  <button class="bnav-btn" onclick="openSyncModal()">
+    <span class="bnav-icon">🔄</span>Sync
+  </button>
+</nav>
+
+<!-- NOTE MODAL -->
+<div class="modal-overlay" id="noteModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-body">
+      <div class="modal-title">Notes — <span id="noteModalGoal"></span></div>
+      <textarea class="note-textarea" id="noteModalText" rows="5" placeholder="Anything worth remembering this week..."></textarea>
+      <div class="modal-btns">
+        <button class="btn-ghost" onclick="closeNoteModal()">Cancel</button>
+        <button class="btn-honey" onclick="saveNoteModal()">Save 🐝</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- SYNC MODAL -->
+<div class="modal-overlay" id="syncModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-body">
+      <div class="modal-title">🔄 Sync <span>Data</span></div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.7">
+        Your data lives on each device separately.<br>
+        <strong style="color:var(--text)">Export</strong> on one device → <strong style="color:var(--text)">Import</strong> on another to keep them in sync.
+      </div>
+
+      <!-- EXPORT -->
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Step 1 — Export from this device</div>
+      <button class="btn-honey" onclick="exportData()" style="width:100%;margin-bottom:6px">
+        📥 Download backup file
+      </button>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:20px;text-align:center">
+        Saves a <code style="color:var(--honey)">.json</code> file — send it to yourself via WhatsApp, email, or iCloud
+      </div>
+
+      <!-- IMPORT -->
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Step 2 — Import on another device</div>
+      <label id="importLabel" style="
+        display:flex;align-items:center;justify-content:center;gap:10px;
+        width:100%;padding:14px;border-radius:12px;
+        border:1.5px dashed var(--border);cursor:pointer;
+        font-size:13px;color:var(--muted);font-weight:600;
+        transition:all 0.15s;margin-bottom:6px;
+      " onmouseover="this.style.borderColor='var(--honey)';this.style.color='var(--honey)'"
+         onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+        📂 Choose backup file
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+      </label>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:20px;text-align:center">
+        ⚠️ This will <strong style="color:var(--red)">replace</strong> all data on this device
+      </div>
+
+      <!-- LAST SYNC INFO -->
+      <div id="syncInfo" style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:16px"></div>
+
+      <button class="btn-ghost" onclick="closeSyncModal()" style="width:100%">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// CONSTANTS & CONFIG
+// ══════════════════════════════════════════════════════════
+const DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+const CATEGORIES = [
+  {
+    id: 'health', name: 'Health', icon: '🌿', color: 'var(--health)',
+    streak: true,
+    goals: [
+      { id: 'workout',  name: 'Workout',  icon: '💪', defaultMin: 3 },
+      { id: 'stretch',  name: 'Stretch',  icon: '🧘', defaultMin: 4 },
+      { id: 'cooking',  name: 'Cooking',  icon: '🍳', defaultMin: 2 },
+    ]
+  },
+  {
+    id: 'learning', name: 'Learning', icon: '📚', color: 'var(--learning)',
+    streak: true,
+    goals: [
+      { id: 'reading', name: 'Reading',       icon: '📖', defaultMin: 3 },
+      { id: 'french',  name: 'French',        icon: '🇫🇷', defaultMin: 2 },
+      { id: 'lean',    name: 'LEAN Six Sigma',icon: '📐', defaultMin: 1 },
+    ]
+  },
+  {
+    id: 'experience', name: 'Experience', icon: '✨', color: 'var(--exp)',
+    streak: false,
+    goals: [
+      { id: 'hiking',    name: 'Hiking',    icon: '🥾', defaultMin: 1 },
+      { id: 'holidays',  name: 'Holidays',  icon: '🌍', defaultMin: 0 },
+      { id: 'socialize', name: 'Socialize', icon: '🤝', defaultMin: 1 },
+    ]
+  },
+];
+
+const ALL_GOALS = CATEGORIES.flatMap(c => c.goals.map(g => ({...g, catId: c.id})));
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem('hive_v1'));
+    if (s && s.logs) return s;
+  } catch(e) {}
+  return initState();
+}
+
+function initState() {
+  // Default minimums per week key — starts at W14
+  return {
+    logs: {},    // { weekKey: { goalId: [0..6] } }
+    notes: {},   // { weekKey: { goalId: "text" } }
+    mins: {},    // { weekKey: { goalId: number } }  overrides
+  };
+}
+
+function saveState() {
+  localStorage.setItem('hive_v1', JSON.stringify(state));
+}
+
+let state = loadState();
+
+// ══════════════════════════════════════════════════════════
+// DATE UTILITIES
+// ══════════════════════════════════════════════════════════
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getWeekKey(date) {
+  return getWeekStart(date).toISOString().split('T')[0];
+}
+
+function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function formatDateRange(weekStart) {
+  const ws = new Date(weekStart);
+  const we = new Date(ws); we.setDate(we.getDate() + 6);
+  return `${ws.getDate()} ${MONTHS[ws.getMonth()]} – ${we.getDate()} ${MONTHS[we.getMonth()]}`;
+}
+
+// App-wide "today"
+const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
+const CURRENT_WEEK_KEY = getWeekKey(TODAY);
+const TODAY_IDX = Math.round((TODAY - getWeekStart(TODAY)) / 86400000); // 0=Mon
+
+// Start of tracker: W14 2026, Mon 30 Mar 2026
+const TRACKER_START = new Date(2026, 2, 30); // March 30
+const TRACKER_START_KEY = getWeekKey(TRACKER_START);
+
+function isFutureWeek(wk) { return wk > CURRENT_WEEK_KEY; }
+function isCurrentWeek(wk) { return wk === CURRENT_WEEK_KEY; }
+function isPastWeek(wk) { return wk < CURRENT_WEEK_KEY; }
+
+// ══════════════════════════════════════════════════════════
+// LOG / MIN / NOTE HELPERS
+// ══════════════════════════════════════════════════════════
+function getLog(wk, gid) {
+  if (!state.logs[wk]) state.logs[wk] = {};
+  if (!state.logs[wk][gid]) state.logs[wk][gid] = [0,0,0,0,0,0,0];
+  return state.logs[wk][gid];
+}
+
+function getCount(wk, gid) {
+  return getLog(wk, gid).reduce((a,b) => a+b, 0);
+}
+
+function getMin(wk, gid) {
+  if (state.mins[wk] && state.mins[wk][gid] !== undefined) return state.mins[wk][gid];
+  const goal = ALL_GOALS.find(g => g.id === gid);
+  return goal ? goal.defaultMin : 0;
+}
+
+function setMin(wk, gid, val) {
+  if (!state.mins[wk]) state.mins[wk] = {};
+  state.mins[wk][gid] = Math.max(0, Math.min(7, val));
+  saveState();
+}
+
+function getNote(wk, gid) {
+  return (state.notes[wk] && state.notes[wk][gid]) || '';
+}
+
+function setNote(wk, gid, text) {
+  if (!state.notes[wk]) state.notes[wk] = {};
+  state.notes[wk][gid] = text;
+  saveState();
+}
+
+// Achievement for a completed week
+function getAch(wk, gid) {
+  if (isCurrentWeek(wk) || isFutureWeek(wk)) return null;
+  const count = getCount(wk, gid);
+  const min = getMin(wk, gid);
+  if (min === 0) return 'skip';
+  if (count > min) return 'exceed';
+  if (count >= min) return 'met';
+  return 'fail';
+}
+
+// Current week partial achievement (live)
+function getLiveAch(gid) {
+  const count = getCount(CURRENT_WEEK_KEY, gid);
+  const min = getMin(CURRENT_WEEK_KEY, gid);
+  if (min === 0) return 'skip';
+  if (count > min) return 'exceed';
+  if (count >= min) return 'met';
+  return 'inprog'; // still in progress
+}
+
+// ══════════════════════════════════════════════════════════
+// STREAK (Health + Learning only, based on past weeks)
+// ══════════════════════════════════════════════════════════
+function getCatStreak(catId) {
+  const cat = CATEGORIES.find(c => c.id === catId);
+  if (!cat || !cat.streak) return 0;
+  let streak = 0;
+  let d = new Date(TODAY);
+  for (let w = 0; w < 52; w++) {
+    d.setDate(d.getDate() - 7);
+    const wk = getWeekKey(d);
+    if (wk < TRACKER_START_KEY) break;
+    // All goals in cat must have met or exceeded their min
+    const allMet = cat.goals.every(g => {
+      const min = getMin(wk, g.id);
+      if (min === 0) return true;
+      return getCount(wk, g.id) >= min;
+    });
+    if (allMet) streak++;
+    else break;
+  }
+  return streak;
+}
+
+// ══════════════════════════════════════════════════════════
+// TOGGLE DAY
+// ══════════════════════════════════════════════════════════
+function toggleDay(gid, dayIdx) {
+  const log = getLog(CURRENT_WEEK_KEY, gid);
+  log[dayIdx] = log[dayIdx] ? 0 : 1;
+  saveState();
+  renderWeek();
+  if (log[dayIdx]) showToast('✓ logged!');
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER: WEEK VIEW
+// ══════════════════════════════════════════════════════════
+function renderWeek() {
+  // Header pill
+  const wn = getWeekNumber(TODAY);
+  document.getElementById('weekNumDisp').textContent = `W${wn}`;
+  document.getElementById('weekDateDisp').textContent = formatDateRange(getWeekStart(TODAY));
+
+  // Day row
+  const ws = getWeekStart(TODAY);
+  const dayRow = document.getElementById('dayRow');
+  dayRow.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(ws); d.setDate(d.getDate() + i);
+    dayRow.innerHTML += `<div class="day-cell ${i === TODAY_IDX ? 'today' : ''}">
+      <div class="dn">${DAYS_SHORT[i].slice(0,1)}</div>
+      <div class="dd">${d.getDate()}</div>
+    </div>`;
+  }
+
+  // Sunday prompt
+  document.getElementById('sundayPrompt').style.display =
+    TODAY.getDay() === 0 ? 'flex' : 'none';
+
+  // Category blocks
+  const container = document.getElementById('categoryBlocks');
+  container.innerHTML = '';
+
+  CATEGORIES.forEach(cat => {
+    const catColor = cat.color;
+    const streak = getCatStreak(cat.id);
+
+    const catDiv = document.createElement('div');
+    catDiv.className = 'cat-section';
+
+    let streakHtml = '';
+    if (cat.streak && streak > 0) {
+      streakHtml = `<div class="streak-pill">🔥 ${streak}w streak</div>`;
+    }
+
+    catDiv.innerHTML = `<div class="cat-header">
+      <div class="cat-hex">${cat.icon}</div>
+      <div class="cat-title" style="color:${catColor}">${cat.name}</div>
+      ${streakHtml}
+    </div>`;
+
+    cat.goals.forEach(goal => {
+      const log = getLog(CURRENT_WEEK_KEY, goal.id);
+      const count = log.reduce((a,b) => a+b, 0);
+      const min = getMin(CURRENT_WEEK_KEY, goal.id);
+      const ach = getLiveAch(goal.id);
+      const hasNote = getNote(CURRENT_WEEK_KEY, goal.id).trim().length > 0;
+
+      // Achievement styling
+      let achHtml = '';
+      if (min === 0) {
+        achHtml = `<span class="ach-badge" style="background:rgba(138,117,72,0.1);color:var(--muted);border-color:var(--border)">— skip</span>`;
+      } else if (ach === 'exceed') {
+        achHtml = `<span class="ach-badge ach-exceed">⭐ exceed</span>`;
+      } else if (ach === 'met') {
+        achHtml = `<span class="ach-badge ach-met">✓ achieved</span>`;
+      }
+
+      // Progress bar color
+      const progColor = min === 0 ? 'var(--muted)' :
+        count > min ? 'var(--star)' :
+        count >= min ? 'var(--green)' :
+        catColor;
+
+      const pct = min === 0 ? 0 : Math.min(100, Math.round(count / 7 * 100));
+
+      let dotsHtml = '';
+      for (let i = 0; i < 7; i++) {
+        const isFuture = i > TODAY_IDX;
+        const done = log[i] === 1;
+        dotsHtml += `<div class="dot-wrap">
+          <div class="dot-label">${DAYS_SHORT[i][0]}</div>
+          <button class="dot-btn ${done?'done':''} ${i===TODAY_IDX?'today-dot':''} ${isFuture?'future':''}"
+            onclick="${isFuture?'':  `toggleDay('${goal.id}',${i})`}">
+          </button>
+        </div>`;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'goal-card';
+      card.id = `card_${goal.id}`;
+      card.style.borderLeftColor = catColor.replace('var(--','').replace(')','');
+
+      // Use actual CSS variable
+      card.style.setProperty('border-left-color', `var(${catColor.includes('var') ? catColor.match(/var\((.*?)\)/)?.[1] || '--honey' : '--honey'})`);
+      card.innerHTML = `
+        <div class="goal-header">
+          <div class="goal-left">
+            <div class="goal-icon">${goal.icon}</div>
+            <div class="goal-info">
+              <div class="goal-name">${goal.name} ${achHtml}</div>
+              <div class="goal-meta">
+                ${min === 0 ? 'No target this week' : `${count} / ${min} days min`}
+                ${min > 0 && count > min ? ` · +${count - min} extra 🌟` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="goal-actions">
+            <div class="goal-count">${count}</div>
+            <button class="icon-btn ${hasNote?'active':''}" onclick="openNoteModal('${goal.id}','${CURRENT_WEEK_KEY}')" title="Notes">📝</button>
+          </div>
+        </div>
+        <div class="day-dots">${dotsHtml}</div>
+        <div class="progress-wrap">
+          <div class="prog-bar">
+            <div class="prog-fill" style="width:${pct}%;background:${progColor}"></div>
+          </div>
+          <div class="prog-label">${min===0?'—': ach==='meet'||ach==='exceed'?'✓ done': count>=min?'✓ done':`${min-count} to go`}</div>
+        </div>`;
+
+      catDiv.appendChild(card);
+    });
+
+    container.appendChild(catDiv);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER: PAST WEEKS
+// ══════════════════════════════════════════════════════════
+function renderPast() {
+  document.getElementById('pastSubtitle').textContent = 'Q2 2026 — Week by week';
+
+  // Collect all weeks from tracker start up to (not including) current
+  const weeks = [];
+  let d = new Date(TRACKER_START);
+  while (getWeekKey(d) < CURRENT_WEEK_KEY) {
+    weeks.push(getWeekKey(d));
+    d.setDate(d.getDate() + 7);
+  }
+  weeks.reverse(); // most recent first
+
+  const container = document.getElementById('pastWeeksList');
+  container.innerHTML = '';
+
+  if (weeks.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--muted)">
+      <div style="font-size:36px;margin-bottom:12px">🐝</div>
+      <div style="font-size:14px">No past weeks yet.<br>Come back after your first week!</div>
+    </div>`;
+    return;
+  }
+
+  weeks.forEach(wk => {
+    const ws = new Date(wk);
+    const wn = getWeekNumber(ws);
+
+    // Summary: fail/met/exceed counts
+    let fails=0, mets=0, exceeds=0;
+    ALL_GOALS.forEach(g => {
+      const a = getAch(wk, g.id);
+      if (a === 'fail') fails++;
+      else if (a === 'met') mets++;
+      else if (a === 'exceed') exceeds++;
+    });
+
+    const item = document.createElement('div');
+    item.className = 'past-week-item';
+    item.onclick = () => openPastWeekDetail(wk);
+
+    item.innerHTML = `
+      <div class="past-week-hdr">
+        <div>
+          <div class="past-week-num" style="color:var(--honey)">Week ${wn}</div>
+          <div class="past-week-dates">${formatDateRange(ws)}</div>
+        </div>
+        <div class="past-week-achs">
+          ${exceeds > 0 ? `<span class="ach-badge ach-exceed">⭐ ${exceeds}</span>` : ''}
+          ${mets > 0 ? `<span class="ach-badge ach-met">✓ ${mets}</span>` : ''}
+          ${fails > 0 ? `<span class="ach-badge ach-fail">✕ ${fails}</span>` : ''}
+        </div>
+      </div>
+      <div class="past-mini-goals">
+        ${ALL_GOALS.slice(0,6).map(g => {
+          const a = getAch(wk, g.id);
+          const c = getCount(wk, g.id);
+          const emoji = a==='exceed'?'⭐':a==='met'?'✅':a==='fail'?'❌':a==='skip'?'—':'·';
+          return `<div class="past-mini">
+            <div class="past-mini-name">${g.name}</div>
+            <div class="past-mini-val">${emoji} ${a!=='skip'?c:''}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+
+    container.appendChild(item);
+  });
+}
+
+// Past week detail modal (open in-place)
+function openPastWeekDetail(wk) {
+  const ws = new Date(wk);
+  const wn = getWeekNumber(ws);
+  // For now show a toast; full detail view can be future expansion
+  showToast(`Week ${wn} — tap goals to see details`);
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER: OVERVIEW (Quarterly)
+// ══════════════════════════════════════════════════════════
+function renderOverview() {
+  const q = Math.floor(TODAY.getMonth() / 3) + 1;
+  const y = TODAY.getFullYear();
+  document.getElementById('ovTitle').innerHTML = `Q${q} <span>${y}</span> Overview`;
+  document.getElementById('ovSub').textContent = `Quarter ${q} · ${y}`;
+
+  // Tabs: one per category + "All"
+  const tabsEl = document.getElementById('ovTabs');
+  const panelsEl = document.getElementById('ovPanels');
+  tabsEl.innerHTML = '';
+  panelsEl.innerHTML = '';
+
+  const tabs = [{id:'all', label:'All'},...CATEGORIES.map(c=>({id:c.id, label:c.name}))];
+
+  tabs.forEach((tab, ti) => {
+    const btn = document.createElement('button');
+    btn.className = `ov-tab ${ti===0?'active':''}`;
+    btn.textContent = tab.label;
+    btn.onclick = () => {
+      document.querySelectorAll('.ov-tab').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.ov-panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(`ovp_${tab.id}`).classList.add('active');
+    };
+    tabsEl.appendChild(btn);
+
+    const panel = document.createElement('div');
+    panel.className = `ov-panel ${ti===0?'active':''}`;
+    panel.id = `ovp_${tab.id}`;
+    panel.innerHTML = buildQuarterPanel(tab.id, q, y);
+    panelsEl.appendChild(panel);
+  });
+}
+
+function buildQuarterPanel(tabId, q, y) {
+  // Weeks in this quarter
+  const qStartMonth = (q-1)*3;
+  const qEndMonth = q*3 - 1;
+  const qWeeks = [];
+  let d = new Date(y, qStartMonth, 1);
+  // Go to first Monday on or before
+  d = getWeekStart(d);
+  const qEnd = new Date(y, qEndMonth+1, 0);
+
+  while (d <= qEnd) {
+    const wk = getWeekKey(d);
+    if (!qWeeks.includes(wk)) qWeeks.push(wk);
+    d.setDate(d.getDate() + 7);
+  }
+
+  // Filter to only tracker-valid weeks
+  const validWeeks = qWeeks.filter(wk => wk >= TRACKER_START_KEY);
+
+  const catsToShow = tabId === 'all' ? CATEGORIES : CATEGORIES.filter(c => c.id === tabId);
+
+  let html = '';
+
+  // Summary stats (all goals in scope)
+  const scopeGoals = catsToShow.flatMap(c => c.goals);
+  const pastWks = validWeeks.filter(wk => !isFutureWeek(wk));
+
+  let totalSessions=0, totalMins=0, totalExceed=0, perfectWeeks=0;
+  pastWks.forEach(wk => {
+    let weekPerfect = true;
+    scopeGoals.forEach(g => {
+      const c = getCount(wk, g.id);
+      const m = getMin(wk, g.id);
+      totalSessions += c;
+      totalMins += m;
+      if (c > m && m > 0) totalExceed++;
+      if (m > 0 && c < m) weekPerfect = false;
+    });
+    if (weekPerfect && scopeGoals.some(g => getMin(wk,g.id)>0)) perfectWeeks++;
+  });
+
+  const rate = totalMins > 0 ? Math.round(totalSessions/totalMins*100) : 0;
+
+  html += `<div class="q-stat-row">
+    <div class="q-stat"><div class="q-stat-val">${rate}%</div><div class="q-stat-label">Hit rate</div></div>
+    <div class="q-stat"><div class="q-stat-val">${perfectWeeks}</div><div class="q-stat-label">Perfect wks</div></div>
+    <div class="q-stat"><div class="q-stat-val">${totalSessions}</div><div class="q-stat-label">Sessions</div></div>
+    <div class="q-stat"><div class="q-stat-val">${totalExceed}</div><div class="q-stat-label">Exceeded</div></div>
+  </div>`;
+
+  // Per category
+  catsToShow.forEach(cat => {
+    const catColor = cat.color;
+    html += `<div class="q-cat-block">
+      <div class="q-cat-header">
+        <div style="font-size:18px">${cat.icon}</div>
+        <div class="q-cat-title" style="color:${catColor}">${cat.name}</div>
+      </div>`;
+
+    cat.goals.forEach(goal => {
+      let fails=0, mets=0, exceeds=0, skips=0;
+      pastWks.forEach(wk => {
+        const a = getAch(wk, goal.id);
+        if (a==='fail') fails++;
+        else if (a==='met') mets++;
+        else if (a==='exceed') exceeds++;
+        else if (a==='skip') skips++;
+      });
+
+      const totalTracked = fails+mets+exceeds;
+      const pct = totalTracked>0 ? Math.round((mets+exceeds)/totalTracked*100) : 0;
+
+      html += `<div class="q-goal-block">
+        <div class="q-goal-name">
+          <span>${goal.icon} ${goal.name}</span>
+          <span class="q-goal-sub">${mets+exceeds}/${totalTracked} wks · ${pct}%</span>
+        </div>
+        <div class="q-week-grid">`;
+
+      validWeeks.forEach(wk => {
+        const isFut = isFutureWeek(wk);
+        const a = isFut ? 'future' : getAch(wk, goal.id);
+        const wn = getWeekNumber(new Date(wk));
+        const count = getCount(wk, goal.id);
+        const min = getMin(wk, goal.id);
+        let cls = 'q-week-cell';
+        let symbol = '';
+        if (a==='future') { cls+=' wk-future'; symbol=''; }
+        else if (a==='skip') { cls+=' wk-skip'; symbol='—'; }
+        else if (a==='exceed') { cls+=' wk-exceed'; symbol='⭐'; }
+        else if (a==='met')  { cls+=' wk-met'; symbol='✓'; }
+        else { cls+=' wk-fail'; symbol='✕'; }
+
+        const tooltip = `W${wn}: ${count}/${min}`;
+        html += `<div class="${cls}" title="${tooltip}">${symbol}</div>`;
+      });
+
+      html += `</div>
+        <div style="display:flex;gap:6px;margin-top:6px;font-size:10px;color:var(--muted)">
+          <span>⭐ ${exceeds}</span><span>✓ ${mets}</span><span>✕ ${fails}</span>${skips?`<span>— ${skips} skip</span>`:''}
+        </div>
+      </div>`;
+    });
+
+    html += `</div>`;
+  });
+
+  return html;
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER: REVIEW VIEW (set next week mins)
+// ══════════════════════════════════════════════════════════
+function renderReview() {
+  // Compute next week key
+  const nextWeekStart = new Date(getWeekStart(TODAY));
+  nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+  const nextWk = getWeekKey(nextWeekStart);
+  const nextWn = getWeekNumber(nextWeekStart);
+
+  const container = document.getElementById('reviewContent');
+  container.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:20px">
+      <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Setting minimums for</div>
+      <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--honey)">Week ${nextWn} — ${formatDateRange(nextWeekStart)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Adjust the minimum days per goal below.<br>Experience goals can be set to 0 if you won't be doing them.</div>
+    </div>`;
+
+  CATEGORIES.forEach(cat => {
+    container.innerHTML += `<div class="cat-header" style="margin-bottom:10px">
+      <div>${cat.icon}</div>
+      <div class="cat-title" style="color:${cat.color};font-size:16px">${cat.name}</div>
+    </div>`;
+
+    const block = document.createElement('div');
+    block.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:4px 14px;margin-bottom:16px';
+
+    cat.goals.forEach(goal => {
+      const currentMin = getMin(nextWk, goal.id);
+      const row = document.createElement('div');
+      row.className = 'min-row';
+      row.id = `minrow_${goal.id}`;
+      row.innerHTML = `
+        <div>
+          <div class="min-goal-name">${goal.icon} ${goal.name}</div>
+          <div class="min-goal-cat">${cat.id} · max 7</div>
+        </div>
+        <div class="min-controls">
+          <button class="min-btn" onclick="adjustMin('${nextWk}','${goal.id}',-1)">−</button>
+          <div class="min-val" id="minval_${goal.id}">${currentMin}</div>
+          <button class="min-btn" onclick="adjustMin('${nextWk}','${goal.id}',1)">+</button>
+        </div>`;
+      block.appendChild(row);
+    });
+
+    container.appendChild(block);
+  });
+
+  // Also show this week summary
+  container.innerHTML += `<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:20px 0 12px">This week's results</div>`;
+
+  CATEGORIES.forEach(cat => {
+    cat.goals.forEach(goal => {
+      const count = getCount(CURRENT_WEEK_KEY, goal.id);
+      const min = getMin(CURRENT_WEEK_KEY, goal.id);
+      const ach = getLiveAch(goal.id);
+      const achEmoji = ach==='exceed'?'⭐':ach==='met'?'✅':ach==='skip'?'—':'🔄';
+      container.innerHTML += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:13px">${goal.icon} ${goal.name}</span>
+        <span style="font-size:13px">${achEmoji} ${count}/${min}</span>
+      </div>`;
+    });
+  });
+}
+
+function adjustMin(wk, gid, delta) {
+  const cur = getMin(wk, gid);
+  const newVal = Math.max(0, Math.min(7, cur + delta));
+  setMin(wk, gid, newVal);
+  const el = document.getElementById(`minval_${gid}`);
+  if (el) el.textContent = newVal;
+  showToast(`${gid} min → ${newVal}`);
+}
+
+// ══════════════════════════════════════════════════════════
+// NOTE MODAL
+// ══════════════════════════════════════════════════════════
+let noteModalGoalId = null;
+let noteModalWeekKey = null;
+
+function openNoteModal(gid, wk) {
+  noteModalGoalId = gid;
+  noteModalWeekKey = wk;
+  const goal = ALL_GOALS.find(g => g.id === gid);
+  document.getElementById('noteModalGoal').textContent = goal ? goal.name : gid;
+  document.getElementById('noteModalText').value = getNote(wk, gid);
+  document.getElementById('noteModal').classList.add('open');
+  setTimeout(() => document.getElementById('noteModalText').focus(), 100);
+}
+
+function closeNoteModal() {
+  document.getElementById('noteModal').classList.remove('open');
+}
+
+function saveNoteModal() {
+  const text = document.getElementById('noteModalText').value;
+  setNote(noteModalWeekKey, noteModalGoalId, text);
+  closeNoteModal();
+  renderWeek();
+  showToast('Note saved 🐝');
+}
+
+// ══════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════
+function switchView(name, btn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'past') renderPast();
+  else if (name === 'overview') renderOverview();
+  else if (name === 'review') renderReview();
+}
+
+// ══════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// ══════════════════════════════════════════════════════════
+// MODAL OVERLAY CLOSE
+// ══════════════════════════════════════════════════════════
+document.getElementById('noteModal').addEventListener('click', function(e) {
+  if (e.target === this) closeNoteModal();
+});
+
+// ══════════════════════════════════════════════════════════
+// SYNC — EXPORT & IMPORT
+// ══════════════════════════════════════════════════════════
+function openSyncModal() {
+  updateSyncInfo();
+  document.getElementById('syncModal').classList.add('open');
+}
+
+function closeSyncModal() {
+  document.getElementById('syncModal').classList.remove('open');
+}
+
+function updateSyncInfo() {
+  const lastExport = localStorage.getItem('hive_last_export');
+  const el = document.getElementById('syncInfo');
+  if (lastExport) {
+    const d = new Date(lastExport);
+    el.innerHTML = `<span class="sync-device-pill">✓ Last export: ${d.toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'})} at ${d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</span>`;
+  } else {
+    el.textContent = 'No export yet on this device';
+  }
+}
+
+function exportData() {
+  const exportObj = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    exportedFrom: navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
+    state: state,
+  };
+
+  const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `hive_backup_${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  localStorage.setItem('hive_last_export', new Date().toISOString());
+  updateSyncInfo();
+  showToast('Backup downloaded 🐝');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parsed = JSON.parse(e.target.result);
+
+      // Validate
+      if (!parsed.state || !parsed.state.logs) {
+        showToast('❌ Invalid backup file');
+        return;
+      }
+
+      // Count entries so user knows what they're importing
+      const weekCount = Object.keys(parsed.state.logs).length;
+      const exportDate = parsed.exportedAt
+        ? new Date(parsed.exportedAt).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'})
+        : 'unknown date';
+      const fromDevice = parsed.exportedFrom || 'unknown device';
+
+      const confirmed = confirm(
+        `Import this backup?\n\n` +
+        `📅 Exported: ${exportDate}\n` +
+        `📱 From: ${fromDevice}\n` +
+        `📊 Weeks of data: ${weekCount}\n\n` +
+        `⚠️ This will replace ALL current data on this device.`
+      );
+
+      if (!confirmed) {
+        event.target.value = '';
+        return;
+      }
+
+      state = parsed.state;
+      saveState();
+      localStorage.setItem('hive_last_export', new Date().toISOString());
+      updateSyncInfo();
+      closeSyncModal();
+      renderWeek();
+      showToast(`✓ ${weekCount} weeks imported!`);
+
+    } catch(err) {
+      showToast('❌ Could not read file');
+    }
+
+    event.target.value = ''; // reset so same file can be re-imported
+  };
+
+  reader.readAsText(file);
+}
+
+document.getElementById('syncModal').addEventListener('click', function(e) {
+  if (e.target === this) closeSyncModal();
+});
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+renderWeek();
+</script>
+</body>
+</html>
