@@ -365,12 +365,16 @@ header {
   width: calc((100% - 12*3px) / 13);
   aspect-ratio: 1;
   border-radius: 4px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 9px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 1px;
   border: 1px solid transparent;
   cursor: default;
   position: relative;
 }
+
+.q-wc-sym { font-size: 9px; line-height: 1; }
+.q-wc-num { font-size: 7px; line-height: 1; opacity: 0.85; }
 
 .q-week-cell.wk-fail    { background: rgba(224,85,85,0.2);   border-color: rgba(224,85,85,0.3); }
 .q-week-cell.wk-met     { background: rgba(109,191,124,0.2); border-color: rgba(109,191,124,0.3); }
@@ -1534,7 +1538,16 @@ function buildQuarterPanel(tabId, q, y) {
         else { cls+=' wk-fail'; symbol='✕'; }
 
         const tooltip = `W${wn}: ${count}/${min}`;
-        html += `<div class="${cls}" title="${tooltip}">${symbol}</div>`;
+        let inner = '';
+        if (a==='future') {
+          inner = `<span class="q-wc-sym"></span>`;
+        } else if (a==='skip') {
+          inner = `<span class="q-wc-sym">—</span>`;
+        } else {
+          const sym = a==='exceed'?'⭐': a==='met'?'✓':'✕';
+          inner = `<span class="q-wc-sym">${sym}</span><span class="q-wc-num">${count}/${min}</span>`;
+        }
+        html += `<div class="${cls}" title="${tooltip}">${inner}</div>`;
       });
 
       html += `</div>
@@ -1554,74 +1567,94 @@ function buildQuarterPanel(tabId, q, y) {
 // RENDER: REVIEW VIEW (set next week mins)
 // ══════════════════════════════════════════════════════════
 function renderReview() {
-  // Compute next week key
-  const nextWeekStart = new Date(getWeekStart(TODAY));
-  nextWeekStart.setDate(nextWeekStart.getDate() + 7);
-  const nextWk = getWeekKey(nextWeekStart);
-  const nextWn = getWeekNumber(nextWeekStart);
-
+  const wn = getWeekNumber(TODAY);
   const container = document.getElementById('reviewContent');
+
   container.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:20px">
-      <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Setting minimums for</div>
-      <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--honey)">Week ${nextWn} — ${formatDateRange(nextWeekStart)}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Adjust the minimum days per goal below.<br>Experience goals can be set to 0 if you won't be doing them.</div>
+      <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Editing current week</div>
+      <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--honey)">Week ${wn} — ${formatDateRange(getWeekStart(TODAY))}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
+        Tap days to fix any missed logs · adjust minimums below each goal.
+      </div>
     </div>`;
 
   CATEGORIES.forEach(cat => {
-    container.innerHTML += `<div class="cat-header" style="margin-bottom:10px">
-      <div>${cat.icon}</div>
-      <div class="cat-title" style="color:${cat.color};font-size:16px">${cat.name}</div>
-    </div>`;
+    // Category header
+    const catHeader = document.createElement('div');
+    catHeader.className = 'cat-header';
+    catHeader.style.marginBottom = '10px';
+    catHeader.innerHTML = `<div>${cat.icon}</div><div class="cat-title" style="color:${cat.color};font-size:16px">${cat.name}</div>`;
+    container.appendChild(catHeader);
 
     const block = document.createElement('div');
-    block.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:4px 14px;margin-bottom:16px';
+    block.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:16px';
 
-    cat.goals.forEach(goal => {
-      const currentMin = getMin(nextWk, goal.id);
-      const row = document.createElement('div');
-      row.className = 'min-row';
-      row.id = `minrow_${goal.id}`;
-      row.innerHTML = `
-        <div>
+    cat.goals.forEach((goal, gi) => {
+      const log = getLog(CURRENT_WEEK_KEY, goal.id);
+      const count = log.reduce((a,b) => a+b, 0);
+      const min = getMin(CURRENT_WEEK_KEY, goal.id);
+
+      const wrap = document.createElement('div');
+      wrap.style.cssText = `padding:10px 0;${gi > 0 ? 'border-top:1px solid var(--border)' : ''}`;
+
+      // Goal name + count
+      wrap.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <div class="min-goal-name">${goal.icon} ${goal.name}</div>
-          <div class="min-goal-cat">${cat.id} · max 7</div>
-        </div>
-        <div class="min-controls">
-          <button class="min-btn" onclick="adjustMin('${nextWk}','${goal.id}',-1)">−</button>
-          <div class="min-val" id="minval_${goal.id}">${currentMin}</div>
-          <button class="min-btn" onclick="adjustMin('${nextWk}','${goal.id}',1)">+</button>
+          <div style="font-family:'Playfair Display',serif;font-size:18px;color:var(--honey)">${count}</div>
         </div>`;
-      block.appendChild(row);
+
+      // Day dots — all 7 tappable (past days, today, no future restriction in review)
+      let dotsHtml = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:10px">`;
+      for (let i = 0; i < 7; i++) {
+        const done = log[i] === 1;
+        const isToday = i === TODAY_IDX;
+        const isFuture = i > TODAY_IDX;
+        dotsHtml += `<div class="dot-wrap">
+          <div class="dot-label">${DAYS_SHORT[i][0]}</div>
+          <button class="dot-btn ${done?'done':''} ${isToday?'today-dot':''} ${isFuture?'future':''}"
+            onclick="${isFuture ? '' : `toggleReviewDay('${goal.id}',${i})`}">
+          </button>
+        </div>`;
+      }
+      dotsHtml += `</div>`;
+      wrap.innerHTML += dotsHtml;
+
+      // Min controls
+      wrap.innerHTML += `
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:11px;color:var(--muted);letter-spacing:0.5px">Minimum · max 7</div>
+          <div class="min-controls">
+            <button class="min-btn" onclick="adjustMin('${CURRENT_WEEK_KEY}','${goal.id}',-1,'rvmin_${goal.id}')">−</button>
+            <div class="min-val" id="rvmin_${goal.id}">${min}</div>
+            <button class="min-btn" onclick="adjustMin('${CURRENT_WEEK_KEY}','${goal.id}',1,'rvmin_${goal.id}')">+</button>
+          </div>
+        </div>`;
+
+      block.appendChild(wrap);
     });
 
     container.appendChild(block);
   });
-
-  // Also show this week summary
-  container.innerHTML += `<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:20px 0 12px">This week's results</div>`;
-
-  CATEGORIES.forEach(cat => {
-    cat.goals.forEach(goal => {
-      const count = getCount(CURRENT_WEEK_KEY, goal.id);
-      const min = getMin(CURRENT_WEEK_KEY, goal.id);
-      const ach = getLiveAch(goal.id);
-      const achEmoji = ach==='exceed'?'⭐':ach==='met'?'✅':ach==='skip'?'—':'🔄';
-      container.innerHTML += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:13px">${goal.icon} ${goal.name}</span>
-        <span style="font-size:13px">${achEmoji} ${count}/${min}</span>
-      </div>`;
-    });
-  });
 }
 
-function adjustMin(wk, gid, delta) {
+function toggleReviewDay(gid, dayIdx) {
+  const log = getLog(CURRENT_WEEK_KEY, gid);
+  log[dayIdx] = log[dayIdx] ? 0 : 1;
+  saveState();
+  renderReview();
+  renderWeek();
+  showToast(log[dayIdx] ? '✓ logged' : 'removed');
+}
+
+function adjustMin(wk, gid, delta, elId) {
   const cur = getMin(wk, gid);
   const newVal = Math.max(0, Math.min(7, cur + delta));
   setMin(wk, gid, newVal);
-  const el = document.getElementById(`minval_${gid}`);
+  const el = document.getElementById(elId || `minval_${gid}`);
   if (el) el.textContent = newVal;
-  showToast(`${gid} min → ${newVal}`);
+  showToast(`Min → ${newVal}`);
 }
 
 // ══════════════════════════════════════════════════════════
