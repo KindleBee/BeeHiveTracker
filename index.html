@@ -383,21 +383,149 @@ header {
 .q-stat-val { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--honey); }
 .q-stat-label { font-size: 8px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
 
-/* ── PAST WEEKS VIEW ── */
-.past-week-item {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; padding: 14px; margin-bottom: 10px;
-  cursor: pointer; transition: all 0.15s;
+/* ── PAST WEEKS TIMELINE ── */
+.timeline-wrap { position: relative; padding-left: 18px; }
+.timeline-wrap::before {
+  content: ''; position: absolute; left: 6px; top: 8px; bottom: 0;
+  width: 2px; background: var(--border); border-radius: 1px;
 }
-.past-week-item:hover { border-color: var(--honey); }
-.past-week-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.past-week-num { font-family: 'Playfair Display', serif; font-size: 16px; }
-.past-week-dates { font-size: 10px; color: var(--muted); }
-.past-week-achs { display: flex; gap: 6px; }
-.past-mini-goals { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
-.past-mini { background: var(--surface2); border-radius: 8px; padding: 8px; text-align: center; }
-.past-mini-name { font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
-.past-mini-val { font-size: 14px; }
+
+.pw-card {
+  position: relative; margin-bottom: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden;
+  transition: border-color 0.15s;
+}
+.pw-card::before {
+  content: ''; position: absolute;
+  left: -14px; top: 20px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--border); border: 2px solid var(--bg);
+  transition: background 0.15s;
+}
+.pw-card.expanded { border-color: var(--honey); }
+.pw-card.expanded::before { background: var(--honey); }
+
+/* collapsed header — always visible */
+.pw-header {
+  display: flex; align-items: center;
+  padding: 14px 14px 14px 16px;
+  cursor: pointer; gap: 10px;
+  user-select: none;
+}
+
+.pw-week-info { flex: 1; min-width: 0; }
+.pw-week-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 17px; color: var(--text);
+}
+.pw-week-dates { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+.pw-score-ring {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; flex-shrink: 0;
+}
+.pw-score-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px; line-height: 1;
+}
+.pw-score-label { font-size: 8px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+
+.pw-ach-row { display: flex; gap: 5px; flex-shrink: 0; }
+
+.pw-chevron {
+  font-size: 12px; color: var(--muted);
+  transition: transform 0.25s; flex-shrink: 0;
+}
+.pw-card.expanded .pw-chevron { transform: rotate(180deg); }
+
+/* score bar under header */
+.pw-score-bar {
+  height: 3px; background: var(--border);
+  margin: 0 14px 0; border-radius: 2px; overflow: hidden;
+}
+.pw-score-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+
+/* expanded body */
+.pw-body {
+  display: none; padding: 14px 14px 4px;
+  border-top: 1px solid var(--border);
+}
+.pw-card.expanded .pw-body { display: block; }
+
+/* edit mode toggle */
+.pw-edit-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.pw-edit-btn {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--muted); font-family: 'Nunito', sans-serif;
+  font-size: 11px; padding: 6px 14px; border-radius: 20px;
+  cursor: pointer; letter-spacing: 0.5px; transition: all 0.15s;
+}
+.pw-edit-btn.editing { border-color: var(--honey); color: var(--honey); }
+
+/* past goal rows */
+.pw-cat-label {
+  font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted); margin: 10px 0 6px;
+}
+.pw-cat-label:first-child { margin-top: 0; }
+
+.pw-goal-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.pw-goal-row:last-child { border-bottom: none; }
+
+.pw-goal-icon { font-size: 16px; flex-shrink: 0; }
+.pw-goal-name { font-size: 13px; font-weight: 600; flex: 1; }
+.pw-goal-result { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.pw-goal-ach { font-size: 16px; }
+.pw-goal-count { font-size: 12px; color: var(--muted); }
+
+/* edit mode: day dots in past week */
+.pw-dots {
+  display: grid; grid-template-columns: repeat(7,1fr); gap: 3px;
+  margin-top: 6px;
+}
+.pw-dot {
+  aspect-ratio: 1; border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: transparent; cursor: pointer;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px;
+  transition: all 0.12s;
+}
+.pw-dot .dl { font-size: 7px; color: var(--muted); }
+.pw-dot .dc { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background 0.15s; }
+.pw-dot.done .dc { background: var(--green); box-shadow: 0 0 6px rgba(109,191,124,0.4); }
+.pw-dot:active { transform: scale(0.88); }
+
+/* min adjust in past edit */
+.pw-min-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0; border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.pw-min-row:last-child { border-bottom: none; }
+.pw-min-label { flex: 1; color: var(--muted); }
+.pw-min-ctrl { display: flex; align-items: center; gap: 8px; }
+.pw-min-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+.pw-min-btn:hover { border-color: var(--honey); }
+.pw-min-val { font-family: 'Playfair Display', serif; font-size: 16px; color: var(--honey); min-width: 18px; text-align: center; }
+
+/* note in past week */
+.pw-note-row { padding: 8px 0; }
+.pw-note-btn { background: none; border: none; color: var(--muted); font-family: 'Nunito', sans-serif; font-size: 11px; cursor: pointer; padding: 0; display: flex; align-items: center; gap: 5px; }
+.pw-note-btn.has-note { color: var(--honey); }
+.pw-note-area { display: none; margin-top: 8px; }
+.pw-note-area.open { display: block; }
+.pw-note-ta { width: 100%; background: var(--bg2); border: 1px solid var(--border); color: var(--text); font-family: 'Nunito', sans-serif; font-size: 12px; padding: 10px 12px; border-radius: 10px; resize: none; outline: none; line-height: 1.6; min-height: 60px; }
+.pw-note-ta:focus { border-color: var(--honey); }
+.pw-note-save { margin-top: 5px; background: transparent; border: 1px solid var(--border); color: var(--muted); font-family: 'Nunito', sans-serif; font-size: 10px; letter-spacing: 1px; padding: 5px 12px; border-radius: 8px; cursor: pointer; text-transform: uppercase; }
+.pw-note-save:hover { border-color: var(--honey); color: var(--honey); }
 
 /* ── MODALS ── */
 .modal-overlay {
@@ -544,6 +672,11 @@ header {
   border-radius: 20px; padding: 4px 12px;
   font-size: 11px; color: var(--green);
 }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 </style>
 </head>
 <body>
@@ -625,10 +758,31 @@ header {
   <button class="bnav-btn" onclick="switchView('review',this)">
     <span class="bnav-icon">✏️</span>Review
   </button>
-  <button class="bnav-btn" onclick="openSyncModal()">
-    <span class="bnav-icon">🔄</span>Sync
+  <button class="bnav-btn" onclick="openOtherMenu(this)">
+    <span class="bnav-icon">••• </span>Other
   </button>
 </nav>
+
+<!-- OTHER MENU (pops up above nav) -->
+<div id="otherMenu" style="
+  display:none; position:fixed; bottom:72px; right:12px;
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:16px; padding:8px; z-index:250;
+  box-shadow:0 -4px 24px rgba(0,0,0,0.4);
+  min-width:160px;
+  animation: fadeUp 0.2s ease;
+">
+  <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);padding:6px 10px 4px">Options</div>
+  <button onclick="openSyncModal();closeOtherMenu()" style="
+    display:flex;align-items:center;gap:10px;
+    width:100%;background:none;border:none;
+    color:var(--text);font-family:'Nunito',sans-serif;
+    font-size:14px;padding:10px 12px;border-radius:10px;
+    cursor:pointer;text-align:left;transition:background 0.15s;
+  " onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='none'">
+    <span style="font-size:18px">🔄</span> Sync
+  </button>
+</div>
 
 <!-- NOTE MODAL -->
 <div class="modal-overlay" id="noteModal">
@@ -1017,19 +1171,22 @@ function renderWeek() {
 }
 
 // ══════════════════════════════════════════════════════════
-// RENDER: PAST WEEKS
+// RENDER: PAST WEEKS TIMELINE
 // ══════════════════════════════════════════════════════════
-function renderPast() {
-  document.getElementById('pastSubtitle').textContent = 'Q2 2026 — Week by week';
+let expandedWeek = null; // which week card is open
+let editingWeek = null;  // which week is in edit mode
 
-  // Collect all weeks from tracker start up to (not including) current
+function renderPast() {
+  const q = Math.floor(TODAY.getMonth() / 3) + 1;
+  document.getElementById('pastSubtitle').textContent = `Q${q} ${TODAY.getFullYear()} · tap a week to expand`;
+
   const weeks = [];
   let d = new Date(TRACKER_START);
   while (getWeekKey(d) < CURRENT_WEEK_KEY) {
     weeks.push(getWeekKey(d));
     d.setDate(d.getDate() + 7);
   }
-  weeks.reverse(); // most recent first
+  weeks.reverse();
 
   const container = document.getElementById('pastWeeksList');
   container.innerHTML = '';
@@ -1042,57 +1199,208 @@ function renderPast() {
     return;
   }
 
-  weeks.forEach(wk => {
-    const ws = new Date(wk);
-    const wn = getWeekNumber(ws);
+  container.innerHTML = `<div class="timeline-wrap" id="timelineInner"></div>`;
+  const tl = document.getElementById('timelineInner');
 
-    // Summary: fail/met/exceed counts
-    let fails=0, mets=0, exceeds=0;
-    ALL_GOALS.forEach(g => {
-      const a = getAch(wk, g.id);
-      if (a === 'fail') fails++;
-      else if (a === 'met') mets++;
-      else if (a === 'exceed') exceeds++;
-    });
+  weeks.forEach(wk => buildWeekCard(tl, wk));
+}
 
-    const item = document.createElement('div');
-    item.className = 'past-week-item';
-    item.onclick = () => openPastWeekDetail(wk);
+function buildWeekCard(container, wk) {
+  const ws = new Date(wk);
+  const wn = getWeekNumber(ws);
+  const isExpanded = expandedWeek === wk;
+  const isEditing = editingWeek === wk;
 
-    item.innerHTML = `
-      <div class="past-week-hdr">
-        <div>
-          <div class="past-week-num" style="color:var(--honey)">Week ${wn}</div>
-          <div class="past-week-dates">${formatDateRange(ws)}</div>
-        </div>
-        <div class="past-week-achs">
-          ${exceeds > 0 ? `<span class="ach-badge ach-exceed">⭐ ${exceeds}</span>` : ''}
-          ${mets > 0 ? `<span class="ach-badge ach-met">✓ ${mets}</span>` : ''}
-          ${fails > 0 ? `<span class="ach-badge ach-fail">✕ ${fails}</span>` : ''}
-        </div>
+  // Compute summary
+  let fails=0, mets=0, exceeds=0, skips=0, totalDone=0, totalMin=0;
+  ALL_GOALS.forEach(g => {
+    const a = getAch(wk, g.id);
+    const m = getMin(wk, g.id);
+    const c = getCount(wk, g.id);
+    if (a==='fail') fails++;
+    else if (a==='met') mets++;
+    else if (a==='exceed') exceeds++;
+    else if (a==='skip') skips++;
+    totalDone += c;
+    if (m > 0) totalMin += m;
+  });
+
+  const rate = totalMin > 0 ? Math.round(totalDone / totalMin * 100) : 0;
+  const scoreColor = rate >= 100 ? 'var(--star)' : rate >= 70 ? 'var(--green)' : rate >= 40 ? 'var(--honey)' : 'var(--red)';
+
+  const card = document.createElement('div');
+  card.className = `pw-card${isExpanded ? ' expanded' : ''}`;
+  card.id = `pwcard_${wk}`;
+
+  // ── COLLAPSED HEADER ──
+  card.innerHTML = `
+    <div class="pw-header" onclick="toggleWeekCard('${wk}')">
+      <div class="pw-week-info">
+        <div class="pw-week-num">Week ${wn}</div>
+        <div class="pw-week-dates">${formatDateRange(ws)}</div>
       </div>
-      <div class="past-mini-goals">
-        ${ALL_GOALS.slice(0,6).map(g => {
-          const a = getAch(wk, g.id);
-          const c = getCount(wk, g.id);
-          const emoji = a==='exceed'?'⭐':a==='met'?'✅':a==='fail'?'❌':a==='skip'?'—':'·';
-          return `<div class="past-mini">
-            <div class="past-mini-name">${g.name}</div>
-            <div class="past-mini-val">${emoji} ${a!=='skip'?c:''}</div>
+      <div class="pw-score-ring">
+        <div class="pw-score-val" style="color:${scoreColor}">${rate}%</div>
+        <div class="pw-score-label">score</div>
+      </div>
+      <div class="pw-ach-row">
+        ${exceeds > 0 ? `<span class="ach-badge ach-exceed">⭐${exceeds}</span>` : ''}
+        ${mets    > 0 ? `<span class="ach-badge ach-met">✓${mets}</span>`    : ''}
+        ${fails   > 0 ? `<span class="ach-badge ach-fail">✕${fails}</span>`   : ''}
+      </div>
+      <div class="pw-chevron">▼</div>
+    </div>
+    <div class="pw-score-bar" style="margin-bottom:${isExpanded?'0':'14px'}">
+      <div class="pw-score-fill" style="width:${Math.min(rate,100)}%;background:${scoreColor}"></div>
+    </div>
+    <div class="pw-body" id="pwbody_${wk}">
+      ${buildWeekBody(wk, isEditing)}
+    </div>`;
+
+  container.appendChild(card);
+}
+
+function buildWeekBody(wk, isEditing) {
+  const isEd = isEditing;
+  let html = `<div class="pw-edit-bar">
+    <div style="font-size:11px;color:var(--muted)">
+      ${isEd ? '✏️ Edit mode — tap days or adjust minimums' : 'Tap goals to see notes'}
+    </div>
+    <button class="pw-edit-btn ${isEd?'editing':''}" onclick="toggleEditMode('${wk}')">
+      ${isEd ? '✓ Done' : '✏️ Edit'}
+    </button>
+  </div>`;
+
+  CATEGORIES.forEach(cat => {
+    html += `<div class="pw-cat-label" style="color:${cat.color}">${cat.icon} ${cat.name}</div>`;
+
+    cat.goals.forEach(goal => {
+      const log = getLog(wk, goal.id);
+      const count = log.reduce((a,b)=>a+b,0);
+      const min = getMin(wk, goal.id);
+      const ach = getAch(wk, goal.id);
+      const note = getNote(wk, goal.id);
+      const hasNote = note.trim().length > 0;
+
+      const achEmoji = ach==='exceed'?'⭐':ach==='met'?'✅':ach==='fail'?'❌':ach==='skip'?'—':'·';
+      const countStr = min===0 ? `skip` : `${count}/${min}`;
+
+      html += `<div class="pw-goal-row">
+        <div class="pw-goal-icon">${goal.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="pw-goal-name">${goal.name}</div>
+            <div class="pw-goal-result">
+              <span class="pw-goal-ach">${achEmoji}</span>
+              <span class="pw-goal-count">${countStr}</span>
+            </div>
           </div>`;
-        }).join('')}
+
+      // Edit mode: show day dots + min controls
+      if (isEd) {
+        // Day dots (all 7 editable in past)
+        html += `<div class="pw-dots">`;
+        for (let i=0;i<7;i++) {
+          const done = log[i]===1;
+          html += `<div class="pw-dot ${done?'done':''}" onclick="togglePastDay('${wk}','${goal.id}',${i})">
+            <div class="dl">${DAYS_SHORT[i][0]}</div>
+            <div class="dc"></div>
+          </div>`;
+        }
+        html += `</div>`;
+
+        // Min adjust
+        html += `<div class="pw-min-row" style="margin-top:6px">
+          <div class="pw-min-label">Minimum target</div>
+          <div class="pw-min-ctrl">
+            <button class="pw-min-btn" onclick="adjustPastMin('${wk}','${goal.id}',-1)">−</button>
+            <div class="pw-min-val" id="pwmin_${wk}_${goal.id}">${min}</div>
+            <button class="pw-min-btn" onclick="adjustPastMin('${wk}','${goal.id}',1)">+</button>
+          </div>
+        </div>`;
+      }
+
+      // Note button (always visible)
+      html += `<div class="pw-note-row">
+        <button class="pw-note-btn ${hasNote?'has-note':''}" onclick="togglePastNote('${wk}','${goal.id}')">
+          📝 ${hasNote ? 'View note' : 'Add note'}
+        </button>
+        <div class="pw-note-area" id="pwnote_${wk}_${goal.id}">
+          <textarea class="pw-note-ta" id="pwnoteta_${wk}_${goal.id}" placeholder="Notes for this week...">${note}</textarea>
+          <button class="pw-note-save" onclick="savePastNote('${wk}','${goal.id}')">Save</button>
+        </div>
       </div>`;
 
-    container.appendChild(item);
+      html += `</div></div>`; // close goal-row inner + goal-row
+    });
+  });
+
+  return html;
+}
+
+function toggleWeekCard(wk) {
+  if (expandedWeek === wk) {
+    expandedWeek = null;
+    editingWeek = null;
+  } else {
+    expandedWeek = wk;
+    editingWeek = null;
+  }
+  renderPast();
+  // Scroll card into view smoothly
+  requestAnimationFrame(() => {
+    const card = document.getElementById(`pwcard_${wk}`);
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 }
 
-// Past week detail modal (open in-place)
-function openPastWeekDetail(wk) {
-  const ws = new Date(wk);
-  const wn = getWeekNumber(ws);
-  // For now show a toast; full detail view can be future expansion
-  showToast(`Week ${wn} — tap goals to see details`);
+function toggleEditMode(wk) {
+  editingWeek = editingWeek === wk ? null : wk;
+  // Re-render just the body
+  const bodyEl = document.getElementById(`pwbody_${wk}`);
+  if (bodyEl) bodyEl.innerHTML = buildWeekBody(wk, editingWeek === wk);
+  const card = document.getElementById(`pwcard_${wk}`);
+  if (card) {
+    const btn = card.querySelector('.pw-edit-btn');
+    if (btn) { btn.classList.toggle('editing', editingWeek===wk); btn.textContent = editingWeek===wk ? '✓ Done' : '✏️ Edit'; }
+  }
+}
+
+function togglePastDay(wk, gid, dayIdx) {
+  const log = getLog(wk, gid);
+  log[dayIdx] = log[dayIdx] ? 0 : 1;
+  saveState();
+  // Update just that dot
+  const bodyEl = document.getElementById(`pwbody_${wk}`);
+  if (bodyEl) bodyEl.innerHTML = buildWeekBody(wk, true);
+  showToast(log[dayIdx] ? '✓ logged' : 'removed');
+}
+
+function adjustPastMin(wk, gid, delta) {
+  const cur = getMin(wk, gid);
+  const newVal = Math.max(0, Math.min(7, cur + delta));
+  setMin(wk, gid, newVal);
+  const el = document.getElementById(`pwmin_${wk}_${gid}`);
+  if (el) el.textContent = newVal;
+  showToast(`Min → ${newVal}`);
+}
+
+function togglePastNote(wk, gid) {
+  const area = document.getElementById(`pwnote_${wk}_${gid}`);
+  if (area) {
+    const isOpen = area.classList.toggle('open');
+    if (isOpen) document.getElementById(`pwnoteta_${wk}_${gid}`)?.focus();
+  }
+}
+
+function savePastNote(wk, gid) {
+  const ta = document.getElementById(`pwnoteta_${wk}_${gid}`);
+  if (!ta) return;
+  setNote(wk, gid, ta.value);
+  // Refresh body to update note button state
+  const bodyEl = document.getElementById(`pwbody_${wk}`);
+  if (bodyEl) bodyEl.innerHTML = buildWeekBody(wk, editingWeek === wk);
+  showToast('Note saved 🐝');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1373,6 +1681,41 @@ function showToast(msg) {
 document.getElementById('noteModal').addEventListener('click', function(e) {
   if (e.target === this) closeNoteModal();
 });
+
+// ══════════════════════════════════════════════════════════
+// OTHER MENU
+// ══════════════════════════════════════════════════════════
+let otherMenuOpen = false;
+
+function openOtherMenu(btn) {
+  const menu = document.getElementById('otherMenu');
+  if (otherMenuOpen) {
+    closeOtherMenu();
+    return;
+  }
+  menu.style.display = 'block';
+  otherMenuOpen = true;
+  btn.style.color = 'var(--honey)';
+  // Close if tapping outside
+  setTimeout(() => document.addEventListener('click', outsideOtherClick), 10);
+}
+
+function closeOtherMenu() {
+  const menu = document.getElementById('otherMenu');
+  menu.style.display = 'none';
+  otherMenuOpen = false;
+  const btn = document.querySelector('.bnav-btn:last-child');
+  if (btn && !btn.classList.contains('active')) btn.style.color = '';
+  document.removeEventListener('click', outsideOtherClick);
+}
+
+function outsideOtherClick(e) {
+  const menu = document.getElementById('otherMenu');
+  const btn = document.querySelector('.bnav-btn:last-child');
+  if (!menu.contains(e.target) && !btn.contains(e.target)) {
+    closeOtherMenu();
+  }
+}
 
 // ══════════════════════════════════════════════════════════
 // SYNC — EXPORT & IMPORT
