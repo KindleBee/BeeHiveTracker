@@ -644,13 +644,25 @@ function blank() {
     sessions: {},  // wk -> dayIdx -> [{name, sets:[{reps,kg}]}]
     partial: {},   // wk -> dayIdx -> true  (strength logged without full detail)
     books: { current: null, finished: [] },
-    templates: [
-      { id:'push', name:'Push', exercises:['Bench press','Overhead press','Dips','Triceps pushdown'] },
-      { id:'pull', name:'Pull', exercises:['Deadlift','Pull-ups','Barbell row','Face pull'] },
-      { id:'legs', name:'Legs', exercises:['Squat','Romanian deadlift','Leg press','Calf raise'] },
-    ],
+    bodyweight: null,
+    templates: defaultTemplates(),
     lastEx: {},    // exerciseName -> [{reps,kg}]
   };
+}
+
+function defaultTemplates() {
+  return [
+    { id:'push', name:'Push', exercises:[
+      'Bench press','Incline bench press','Dips','Shoulder press',
+      'Face pulls / rear delt fly','Overhead triceps extension','Hollow body hold'
+    ]},
+    { id:'pull', name:'Pull', exercises:[
+      'Lat pulldown (wide grip)','Vertical row','Pull-ups','Bent-over barbell row','Dead hangs'
+    ]},
+    { id:'legs', name:'Legs', exercises:[
+      'Deadlift','Zercher squat','Bulgarian split squat','Standing calf raise','Leg press','Leg curl'
+    ]},
+  ];
 }
 
 function load() {
@@ -749,8 +761,33 @@ function sessions(wk, di) {
   S.sessions[wk][di] = S.sessions[wk][di] || [];
   return S.sessions[wk][di];
 }
+
+/* Reps may be "5" or "30s" (a hold — excluded from volume).
+   Kg may be "80", "BW", or "BW+20". */
+function parseReps(v) {
+  if (v === null || v === undefined || v === '') return { n: 0, isTime: false };
+  const s = String(v).trim();
+  const isTime = /s$/i.test(s);
+  const n = parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
+  return { n, isTime };
+}
+function parseKg(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  const s = String(v).trim();
+  if (/^bw/i.test(s)) {
+    const bw = +S.bodyweight || 0;
+    const extra = parseFloat(s.replace(/^bw/i, '').replace(/[^0-9.\-+]/g, '')) || 0;
+    return bw + extra;
+  }
+  return parseFloat(s.replace(',', '.')) || 0;
+}
+function setVolume(st) {
+  const r = parseReps(st.reps);
+  if (r.isTime) return 0;
+  return r.n * parseKg(st.kg);
+}
 function sessionVolume(exs) {
-  return exs.reduce((t,e) => t + e.sets.reduce((s,x) => s + (+x.reps||0) * (+x.kg||0), 0), 0);
+  return exs.reduce((t, e) => t + e.sets.reduce((s, x) => s + setVolume(x), 0), 0);
 }
 function weekVolume(wk) {
   let v = 0;
@@ -1074,7 +1111,7 @@ function paintSession() {
   }
 
   SESS.exs.forEach((ex, ei) => {
-    const evol = Math.round(ex.sets.reduce((s,x) => s + (+x.reps||0)*(+x.kg||0), 0));
+    const evol = Math.round(ex.sets.reduce((s,x) => s + setVolume(x), 0));
     html += `<div class="ex-block">
       <div class="ex-head">
         <span class="ex-name">${esc(ex.name)}</span>
@@ -1085,9 +1122,9 @@ function paintSession() {
     ex.sets.forEach((st, si) => {
       html += `<div class="set-row">
         <span class="set-n">${si+1}</span>
-        <input class="set-in" type="number" inputmode="numeric" value="${st.reps ?? ''}" placeholder="—"
+        <input class="set-in" type="text" inputmode="numeric" value="${esc(st.reps ?? '')}" placeholder="—"
           onchange="setVal(${ei},${si},'reps',this.value)">
-        <input class="set-in" type="number" inputmode="decimal" step="0.5" value="${st.kg ?? ''}" placeholder="—"
+        <input class="set-in" type="text" inputmode="text" value="${esc(st.kg ?? '')}" placeholder="—"
           onchange="setVal(${ei},${si},'kg',this.value)">
         <button class="set-del" onclick="delSet(${ei},${si})" aria-label="Remove set">✕</button>
       </div>`;
@@ -1100,8 +1137,10 @@ function paintSession() {
       <button class="btn-ghost" onclick="quickSave()">Quick save</button>
       <button class="btn-honey" onclick="saveSession()">Save session</button>
     </div>
-    <p style="font-size:10px;color:var(--muted);margin-top:10px;line-height:1.5">
-      Quick save marks the day done and flags it as logged without detail, so it never looks like a zero later.
+    <p style="font-size:10px;color:var(--muted);margin-top:10px;line-height:1.6">
+      Kg accepts <b style="color:var(--text)">BW</b> or <b style="color:var(--text)">BW+20</b> for bodyweight work${S.bodyweight ? ` (yours: ${S.bodyweight} kg)` : ` — <span style="color:var(--honey)">set your bodyweight under More → Workout templates</span>`}.
+      Put an <b style="color:var(--text)">s</b> after a hold, like 30s, and it stays out of the volume total.<br>
+      Quick save marks the day done and flags it as detail pending, so it never looks like a zero later.
     </p>`;
 
   if (sessions(SESS.wk, SESS.i).length || log(SESS.wk,'strength')[SESS.i]) {
@@ -1111,7 +1150,10 @@ function paintSession() {
   document.getElementById('modalBody').innerHTML = html;
 }
 
-function setVal(ei, si, field, v) { SESS.exs[ei].sets[si][field] = v === '' ? null : +v; paintSession(); }
+function setVal(ei, si, field, v) {
+  SESS.exs[ei].sets[si][field] = String(v).trim() === '' ? null : String(v).trim();
+  paintSession();
+}
 function addSet(ei) {
   const sets = SESS.exs[ei].sets;
   const last = sets[sets.length-1];
@@ -1269,7 +1311,14 @@ function dropBook() {
    ══════════════════════════════════════════════════════ */
 function openTemplates() {
   let html = `<div class="modal-title">🏋️ <span>Workout templates</span></div>
-    <div class="modal-sub">Preset exercise lists so logging is edit, not type</div>`;
+    <div class="modal-sub">Preset exercise lists so logging is edit, not type</div>
+    <label>Your bodyweight (kg)</label>
+    <input id="bwIn" type="number" step="0.5" value="${S.bodyweight ?? ''}" placeholder="e.g. 78"
+      onchange="saveBW(this.value)">
+    <p style="font-size:10.5px;color:var(--muted);margin-top:7px;line-height:1.6">
+      Used to turn <b style="color:var(--text)">BW</b> into a real number for pull-ups, dips and hangs, so their volume counts.
+    </p>
+    <label style="margin-top:20px">Templates</label>`;
   S.templates.forEach(t => {
     html += `<div class="ex-block">
       <div class="ex-head">
@@ -1286,8 +1335,19 @@ function openTemplates() {
     <div class="btn-row">
       <button class="btn-ghost" onclick="closeModal()">Close</button>
       <button class="btn-honey" onclick="addTemplate()">Add template</button>
-    </div>`;
+    </div>
+    <button class="btn-danger" style="width:100%;margin-top:10px" onclick="resetTemplates()">Restore default templates</button>`;
   openModal(html);
+}
+function saveBW(v) {
+  S.bodyweight = v === '' ? null : +v;
+  save();
+  toast(S.bodyweight ? `Bodyweight ${S.bodyweight} kg` : 'Bodyweight cleared');
+}
+function resetTemplates() {
+  if (!confirm('Replace your templates with the Push / Pull / Legs defaults?')) return;
+  S.templates = defaultTemplates();
+  save(); openTemplates(); toast('Templates restored');
 }
 function addTemplate() {
   const n = document.getElementById('tplName').value.trim();
@@ -1780,7 +1840,7 @@ function exportWeekly() {
 }
 
 function exportTraining() {
-  const rows = [['week_number','date','exercise','set_number','reps','kg','volume_kg']];
+  const rows = [['week_number','date','exercise','set_number','reps_entered','kg_entered','reps_num','kg_resolved','is_hold','volume_kg']];
   Object.keys(S.sessions).sort().forEach(wk => {
     const ws = keyToDate(wk);
     Object.keys(S.sessions[wk]).map(Number).sort((a,b)=>a-b).forEach(i => {
@@ -1788,7 +1848,9 @@ function exportTraining() {
       const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       S.sessions[wk][i].forEach(ex => {
         ex.sets.forEach((st, si) => {
-          rows.push([wkNum(d), ds, ex.name, si+1, st.reps ?? '', st.kg ?? '', (+st.reps||0)*(+st.kg||0)]);
+          const r = parseReps(st.reps);
+          rows.push([wkNum(d), ds, ex.name, si+1, st.reps ?? '', st.kg ?? '',
+                     r.n, parseKg(st.kg), r.isTime ? 'yes' : 'no', Math.round(setVolume(st))]);
         });
       });
     });
