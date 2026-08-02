@@ -432,6 +432,36 @@ header {
 .wk-future { background: var(--surface); opacity: 0.35; }
 .wk-skip   { background: var(--surface); opacity: 0.45; }
 .q-tally { display: flex; gap: 8px; margin-top: 6px; font-size: 9.5px; color: var(--muted); font-weight: 600; }
+.q-goal.drill { cursor: pointer; border-radius: 10px; margin-left: -6px; margin-right: -6px; padding: 6px; transition: background 0.15s; }
+.q-goal.drill:active { background: var(--surface); }
+.q-more { font-size: 9px; color: var(--honey); font-weight: 700; letter-spacing: 0.5px; }
+.spark-wrap { margin-top: 7px; }
+.spark-lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 9px; color: var(--muted); margin-top: 4px; font-weight: 600; }
+
+/* drill-down */
+.drill-sec { font-size: 9.5px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+.drill-ex { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 11px; margin-bottom: 9px; }
+.drill-ex-h { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+.drill-ex-n { font-size: 13px; font-weight: 700; }
+.drill-ex-m { font-size: 9.5px; color: var(--muted); margin-top: 2px; }
+.drill-best { font-family: 'Playfair Display', serif; font-size: 17px; color: var(--honey); line-height: 1; }
+.drill-line { width: 100%; height: 30px; margin: 8px 0 4px; overflow: visible; }
+.drill-row { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; border-top: 1px solid var(--border); font-size: 11px; }
+.drill-date { color: var(--muted); font-size: 9.5px; width: 58px; flex-shrink: 0; font-weight: 600; }
+.drill-sets { flex: 1; min-width: 0; color: var(--text); font-size: 11px; }
+.drill-vol { color: var(--muted); font-size: 9.5px; white-space: nowrap; }
+.drill-kind { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 11px; margin-bottom: 9px; }
+.drill-kind-h { display: flex; align-items: center; gap: 8px; }
+
+/* template editing */
+.tpl-ex-row { display: grid; grid-template-columns: 20px 1fr 26px; gap: 7px; align-items: center; margin-bottom: 5px; }
+.tpl-ex-move { display: flex; flex-direction: column; gap: 1px; }
+.tpl-arrow {
+  background: none; border: none; color: var(--muted);
+  font-size: 8px; line-height: 1; cursor: pointer; padding: 2px;
+}
+.tpl-arrow:disabled { opacity: 0.25; cursor: default; }
+.tpl-arrow:not(:disabled):active { color: var(--honey); }
 .spark { display: flex; align-items: flex-end; gap: 3px; height: 34px; margin-top: 7px; }
 .spark-b {
   width: calc((100% - 12*3px) / 13);
@@ -1197,7 +1227,7 @@ function paintCardio() {
     <div class="qp-val" style="font-size:34px;margin-bottom:2px">${CD.km.toFixed(1)}</div>
     <div class="qp-unit" style="margin-bottom:12px">km</div>
     <div class="qp-chips" style="margin-bottom:12px">
-      ${[1,2,3,5].map(v => `<button class="qp-chip" onclick="cdAdd(${v})">+${v}</button>`).join('')}
+      ${[0.5,1,2,5].map(v => `<button class="qp-chip" onclick="cdAdd(${v})">+${v}</button>`).join('')}
     </div>
     <div class="qp-step" style="margin-bottom:${needsLevel ? '18px' : '4px'}">
       <button class="qp-sbtn" onclick="cdAdd(-0.5)">−</button>
@@ -1489,6 +1519,8 @@ function dropBook() {
 /* ══════════════════════════════════════════════════════
    TEMPLATES
    ══════════════════════════════════════════════════════ */
+let editTpl = null;
+
 function openTemplates() {
   let html = `<div class="modal-title">🏋️ <span>Workout templates</span></div>
     <div class="modal-sub">Preset exercise lists so logging is edit, not type</div>
@@ -1496,18 +1528,43 @@ function openTemplates() {
     <input id="bwIn" type="number" step="0.5" value="${S.bodyweight ?? ''}" placeholder="e.g. 78"
       onchange="saveBW(this.value)">
     <p style="font-size:10.5px;color:var(--muted);margin-top:7px;line-height:1.6">
-      Used to turn <b style="color:var(--text)">BW</b> into a real number for pull-ups, dips and hangs, so their volume counts.
+      Turns <b style="color:var(--text)">BW</b> into a real number for pull-ups and dips, so their volume counts.
     </p>
     <label style="margin-top:20px">Templates</label>`;
+
   S.templates.forEach(t => {
+    const open = editTpl === t.id;
     html += `<div class="ex-block">
       <div class="ex-head">
-        <span class="ex-name">${esc(t.name)}</span>
+        <div style="flex:1;min-width:0">
+          <div class="ex-name">${esc(t.name)}</div>
+          <div class="ex-last">${t.exercises.length} exercises</div>
+        </div>
+        <button class="pw-edit ${open?'on':''}" onclick="toggleTpl('${t.id}')">${open ? '✓ Done' : '✏️ Edit'}</button>
         <button class="set-del" onclick="delTemplate('${t.id}')" aria-label="Delete template">✕</button>
-      </div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.7">${t.exercises.map(esc).join(' · ')}</div>
-    </div>`;
+      </div>`;
+
+    if (open) {
+      html += `<label style="margin-top:10px">Name</label>
+        <input value="${esc(t.name)}" onchange="renameTpl('${t.id}',this.value)">
+        <label>Exercises</label>`;
+      t.exercises.forEach((ex, i) => {
+        html += `<div class="tpl-ex-row">
+          <div class="tpl-ex-move">
+            <button class="tpl-arrow" ${i===0?'disabled':''} onclick="moveEx('${t.id}',${i},-1)" aria-label="Move up">▲</button>
+            <button class="tpl-arrow" ${i===t.exercises.length-1?'disabled':''} onclick="moveEx('${t.id}',${i},1)" aria-label="Move down">▼</button>
+          </div>
+          <input class="set-in" style="text-align:left" value="${esc(ex)}" onchange="renameEx('${t.id}',${i},this.value)">
+          <button class="set-del" onclick="removeEx('${t.id}',${i})" aria-label="Remove">✕</button>
+        </div>`;
+      });
+      html += `<button class="mini-btn" style="margin-top:8px" onclick="addTplEx('${t.id}')">+ Add exercise</button>`;
+    } else {
+      html += `<div style="font-size:11px;color:var(--muted);line-height:1.7">${t.exercises.map(esc).join(' · ')}</div>`;
+    }
+    html += `</div>`;
   });
+
   html += `<label style="margin-top:18px">New template</label>
     <input id="tplName" placeholder="Name, e.g. Upper A" />
     <label>Exercises, comma separated</label>
@@ -1519,6 +1576,37 @@ function openTemplates() {
     <button class="btn-danger" style="width:100%;margin-top:10px" onclick="resetTemplates()">Restore default templates</button>`;
   openModal(html);
 }
+
+function toggleTpl(id) { editTpl = editTpl === id ? null : id; openTemplates(); }
+function renameTpl(id, v) {
+  const t = S.templates.find(x => x.id === id);
+  if (t && v.trim()) { t.name = v.trim(); save(); openTemplates(); }
+}
+function renameEx(id, i, v) {
+  const t = S.templates.find(x => x.id === id);
+  if (!t) return;
+  if (v.trim()) t.exercises[i] = v.trim(); else t.exercises.splice(i,1);
+  save(); openTemplates();
+}
+function removeEx(id, i) {
+  const t = S.templates.find(x => x.id === id);
+  if (!t) return;
+  t.exercises.splice(i,1); save(); openTemplates();
+}
+function moveEx(id, i, d) {
+  const t = S.templates.find(x => x.id === id);
+  if (!t) return;
+  const j = i + d;
+  if (j < 0 || j >= t.exercises.length) return;
+  [t.exercises[i], t.exercises[j]] = [t.exercises[j], t.exercises[i]];
+  save(); openTemplates();
+}
+function addTplEx(id) {
+  const n = prompt('Exercise name');
+  if (!n || !n.trim()) return;
+  const t = S.templates.find(x => x.id === id);
+  if (t) { t.exercises.push(n.trim()); save(); openTemplates(); }
+}
 function saveBW(v) {
   S.bodyweight = v === '' ? null : +v;
   save();
@@ -1527,6 +1615,7 @@ function saveBW(v) {
 function resetTemplates() {
   if (!confirm('Replace your templates with the Push / Pull / Legs defaults?')) return;
   S.templates = defaultTemplates();
+  editTpl = null;
   save(); openTemplates(); toast('Templates restored');
 }
 function addTemplate() {
@@ -1806,26 +1895,32 @@ function quarterPanel(tab, q, y) {
       });
       const pct = tracked ? Math.round((m+x)/tracked*100) : 0;
 
-      let sub;
-      if (!scored) {
-        const tot = past.reduce((s,wk) => s + qtySum(wk, g.id), 0);
-        const avg = past.length ? tot/past.length : 0;
-        sub = `${fmtQty(tot,g.unit)} total · ${fmtQty(avg,g.unit)}/wk avg`;
-      } else if (g.type === 'cardio') {
-        const tot = past.reduce((s,wk) => s + cardioKm(wk), 0);
-        sub = `${m+x}/${tracked} wks · ${pct}% · ${fmtQty(tot,'km')}`;
-      } else if (g.type === 'detail') {
-        const tot = past.reduce((s,wk) => s + weekVolume(wk), 0);
-        sub = `${m+x}/${tracked} wks · ${pct}% · ${Math.round(tot/1000)}t volume`;
-      } else if (g.type === 'quantity') {
-        const tot = past.reduce((s,wk) => s + qtySum(wk, g.id), 0);
-        sub = `${m+x}/${tracked} wks · ${pct}% · ${fmtQty(tot,g.unit)}`;
-      } else {
-        sub = `${m+x}/${tracked} wks · ${pct}%`;
-      }
+      // what the goal actually asks for
+      let targetLbl;
+      if (!scored) targetLbl = 'no target · observed';
+      else if (g.target === 'quantity') targetLbl = `${fmtQty(getQtyT(NOW_WK,g.id), g.unit)} / week`;
+      else targetLbl = `${getMin(NOW_WK,g.id)} ${getMin(NOW_WK,g.id)===1?'day':'days'} / week`;
 
-      h += `<div class="q-goal">
-        <div class="q-gn"><span>${g.icon} ${g.name}</span><span class="q-gs">${sub}</span></div>`;
+      // what was actually logged across the quarter
+      const totalOf = wk =>
+        g.type === 'detail' ? weekVolume(wk) :
+        g.type === 'cardio' ? cardioKm(wk) :
+        (g.type === 'quantity' || g.type === 'hours') ? qtySum(wk, g.id) : days(wk, g.id);
+
+      const tot = past.reduce((s,wk) => s + totalOf(wk), 0);
+      const avg = past.length ? tot/past.length : 0;
+      let totalLbl;
+      if (g.type === 'detail') totalLbl = `${Math.round(tot).toLocaleString('en-GB')} kg · ${Math.round(avg).toLocaleString('en-GB')}/wk`;
+      else if (g.type === 'tick') totalLbl = `${tot} days · ${Math.round(avg*10)/10}/wk`;
+      else totalLbl = `${fmtQty(tot,g.unit)} · ${fmtQty(avg,g.unit)}/wk`;
+
+      const drill = (g.type === 'detail' || g.type === 'cardio');
+
+      h += `<div class="q-goal${drill?' drill':''}" ${drill?`onclick="openDrill('${g.id}',${q},${y})"`:''}>
+        <div class="q-gn">
+          <span>${g.icon} ${g.name}${drill?' <span class="q-more">details ›</span>':''}</span>
+          <span class="q-gs">${targetLbl}</span>
+        </div>`;
 
       if (scored) {
         h += `<div class="q-grid">`;
@@ -1846,19 +1941,24 @@ function quarterPanel(tab, q, y) {
           <span style="color:var(--green)">✓ ${m}</span>
           <span style="color:var(--red)">✕ ${f}</span>
           ${p?`<span style="color:var(--away)">⏸ ${p}</span>`:''}
+          <span style="margin-left:auto">${pct}% of weeks</span>
         </div>`;
       }
 
+      // amount logged per week
       if (g.type !== 'tick') {
-        const vals = wks.map(wk => isFuture(wk) ? null :
-          g.type === 'detail' ? weekVolume(wk) :
-          g.type === 'cardio' ? cardioKm(wk) : qtySum(wk, g.id));
+        const vals = wks.map(wk => isFuture(wk) ? null : totalOf(wk));
         const max = Math.max(...vals.filter(v => v !== null), 1);
-        h += `<div class="spark">${vals.map(v =>
-          v === null
-            ? `<div class="spark-b" style="height:2px;background:var(--border);opacity:0.35"></div>`
-            : `<div class="spark-b" style="height:${Math.max(2, v/max*34)}px;background:${v>0?cat.color:'var(--border)'};opacity:${v>0?0.75:1}"></div>`
-        ).join('')}</div>`;
+        h += `<div class="spark-wrap">
+          <div class="spark">${vals.map(v =>
+            v === null
+              ? `<div class="spark-b" style="height:2px;background:var(--border);opacity:0.3"></div>`
+              : `<div class="spark-b" title="${fmtQty(v,g.unit)}" style="height:${Math.max(2, v/max*30)}px;background:${v>0?cat.color:'var(--border)'};opacity:${v>0?0.8:1}"></div>`
+          ).join('')}</div>
+          <div class="spark-lbl"><span>${totalLbl}</span><span>peak ${fmtQty(max, g.unit)}</span></div>
+        </div>`;
+      } else {
+        h += `<div class="spark-lbl" style="margin-top:5px"><span>${totalLbl}</span></div>`;
       }
 
       h += `</div>`;
@@ -1869,6 +1969,235 @@ function quarterPanel(tab, q, y) {
   if (!past.length) h += `<div class="empty"><div class="empty-ic">🔭</div><p>Nothing to show yet — this fills in as weeks complete.</p></div>`;
 
   return h;
+}
+
+/* ══════════════════════════════════════════════════════
+   DRILL-DOWN — strength and cardio quarter detail
+   ══════════════════════════════════════════════════════ */
+function openDrill(id, q, y) {
+  if (id === 'strength') drillStrength(q, y);
+  else if (id === 'cardio') drillCardio(q, y);
+}
+
+/* Collect every logged set in the quarter, grouped by exercise */
+function exerciseHistory(q, y) {
+  const wks = quarterWeeks(q, y).filter(w => !isFuture(w));
+  const byEx = {};
+  wks.forEach(wk => {
+    const dd = S.sessions[wk] || {};
+    Object.keys(dd).map(Number).sort((a,b)=>a-b).forEach(i => {
+      const ws = keyToDate(wk);
+      const d = new Date(ws); d.setDate(d.getDate() + i);
+      dd[i].forEach(ex => {
+        const sets = ex.sets.filter(s => s.reps || s.kg);
+        if (!sets.length) return;
+        byEx[ex.name] = byEx[ex.name] || [];
+        // top set = heaviest resolved weight, tie broken by reps
+        let top = null;
+        sets.forEach(s => {
+          const kg = parseKg(s.kg), r = parseReps(s.reps);
+          if (r.isTime) return;
+          if (!top || kg > top.kg || (kg === top.kg && r.n > top.reps)) top = { kg, reps: r.n, raw: s };
+        });
+        byEx[ex.name].push({
+          wk, date: d, day: i,
+          sets: sets.map(s => ({ ...s })),
+          volume: Math.round(sets.reduce((t,s) => t + setVolume(s), 0)),
+          top
+        });
+      });
+    });
+  });
+  Object.keys(byEx).forEach(k => byEx[k].sort((a,b) => a.date - b.date));
+  return byEx;
+}
+
+function drillStrength(q, y) {
+  const wks = quarterWeeks(q, y);
+  const past = wks.filter(w => !isFuture(w));
+  const byEx = exerciseHistory(q, y);
+  const names = Object.keys(byEx).sort((a,b) => byEx[b].length - byEx[a].length);
+
+  const totalVol = past.reduce((s,wk) => s + weekVolume(wk), 0);
+  const totalSessions = past.reduce((s,wk) => s + Object.keys(S.sessions[wk] || {}).filter(i => (S.sessions[wk][i]||[]).length).length, 0);
+  const totalSets = names.reduce((s,n) => s + byEx[n].reduce((t,e) => t + e.sets.length, 0), 0);
+
+  let h = `<div class="modal-title">🏋️ <span>Strength</span> · Q${q} ${y}</div>
+    <div class="modal-sub">Every session and set this quarter</div>
+    <div class="q-stats" style="margin-bottom:18px">
+      <div class="q-stat"><div class="q-sv">${totalSessions}</div><div class="q-sl">Sessions</div></div>
+      <div class="q-stat"><div class="q-sv">${totalSets}</div><div class="q-sl">Sets</div></div>
+      <div class="q-stat"><div class="q-sv">${Math.round(totalVol/1000)}t</div><div class="q-sl">Volume</div></div>
+      <div class="q-stat"><div class="q-sv">${names.length}</div><div class="q-sl">Lifts</div></div>
+    </div>`;
+
+  // weekly volume bars
+  const vols = wks.map(wk => isFuture(wk) ? null : weekVolume(wk));
+  const vmax = Math.max(...vols.filter(v => v !== null), 1);
+  h += `<div class="drill-sec">Weekly volume</div>
+    <div class="spark" style="height:44px">${vols.map((v,i) =>
+      v === null
+        ? `<div class="spark-b" style="height:2px;background:var(--border);opacity:0.3"></div>`
+        : `<div class="spark-b" title="W${wkNum(keyToDate(wks[i]))}: ${v.toLocaleString('en-GB')}kg"
+             style="height:${Math.max(2, v/vmax*40)}px;background:var(--health);opacity:${v>0?0.8:1}"></div>`
+    ).join('')}</div>
+    <div class="spark-lbl"><span>W${wkNum(keyToDate(wks[0]))}</span><span>peak ${vmax.toLocaleString('en-GB')} kg</span></div>`;
+
+  if (!names.length) {
+    h += `<div class="empty" style="padding:30px 10px"><div class="empty-ic">🏋️</div>
+      <p>No sets logged this quarter yet.</p></div>`;
+  }
+
+  names.forEach(name => {
+    const hist = byEx[name];
+    const tops = hist.filter(e => e.top).map(e => e.top.kg);
+    const best = tops.length ? Math.max(...tops) : 0;
+    const first = tops.length ? tops[0] : 0;
+    const latest = tops.length ? tops[tops.length-1] : 0;
+    const delta = latest - first;
+    const totalV = hist.reduce((s,e) => s + e.volume, 0);
+
+    h += `<div class="drill-ex">
+      <div class="drill-ex-h">
+        <div style="flex:1;min-width:0">
+          <div class="drill-ex-n">${esc(name)}</div>
+          <div class="drill-ex-m">${hist.length} sessions · ${totalV.toLocaleString('en-GB')} kg</div>
+        </div>
+        <div style="text-align:right">
+          <div class="drill-best">${best ? best + ' kg' : '—'}</div>
+          <div class="drill-ex-m">${delta > 0 ? `<span style="color:var(--green)">▲ ${Math.round(delta*10)/10}</span>` : delta < 0 ? `<span style="color:var(--red)">▼ ${Math.abs(Math.round(delta*10)/10)}</span>` : 'best'}</div>
+        </div>
+      </div>`;
+
+    // top-set progression line
+    if (tops.length > 1) {
+      const mn = Math.min(...tops), mx = Math.max(...tops);
+      const span = mx - mn || 1;
+      const pts = tops.map((v,i) => `${(i/(tops.length-1))*100},${28 - ((v-mn)/span)*26}`).join(' ');
+      h += `<svg class="drill-line" viewBox="0 0 100 30" preserveAspectRatio="none">
+        <polyline points="${pts}" fill="none" stroke="var(--health)" stroke-width="1.4"
+          vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+        ${tops.map((v,i) => `<circle cx="${(i/(tops.length-1))*100}" cy="${28 - ((v-mn)/span)*26}" r="1.6" fill="var(--health)"/>`).join('')}
+      </svg>`;
+    }
+
+    // session rows
+    hist.slice().reverse().forEach(e => {
+      const setStr = e.sets.map(s => `${s.reps ?? '?'}×${s.kg ?? '?'}`).join('  ');
+      h += `<div class="drill-row">
+        <span class="drill-date">W${wkNum(e.date)} ${DAYS[e.day]}</span>
+        <span class="drill-sets">${esc(setStr)}</span>
+        <span class="drill-vol">${e.volume ? e.volume.toLocaleString('en-GB') : ''}</span>
+      </div>`;
+    });
+
+    h += `</div>`;
+  });
+
+  h += `<div class="btn-row"><button class="btn-ghost" style="flex:1" onclick="closeModal()">Close</button></div>`;
+  openModal(h);
+}
+
+function drillCardio(q, y) {
+  const wks = quarterWeeks(q, y);
+  const past = wks.filter(w => !isFuture(w));
+
+  // gather sessions
+  const all = [];
+  past.forEach(wk => {
+    const cd = S.cardio[wk] || {};
+    Object.keys(cd).map(Number).sort((a,b)=>a-b).forEach(i => {
+      const ws = keyToDate(wk);
+      const d = new Date(ws); d.setDate(d.getDate() + i);
+      all.push({ ...cd[i], wk, day: i, date: d });
+    });
+  });
+  all.sort((a,b) => a.date - b.date);
+
+  const totalKm = +all.reduce((s,e) => s + (+e.km||0), 0).toFixed(1);
+  const byKind = {};
+  all.forEach(e => {
+    byKind[e.kind] = byKind[e.kind] || { km:0, n:0, levels:[] };
+    byKind[e.kind].km += +e.km || 0;
+    byKind[e.kind].n++;
+    if (e.level != null) byKind[e.kind].levels.push({ level: e.level, date: e.date, km: +e.km||0 });
+  });
+  const kinds = CARDIO_KINDS.filter(k => byKind[k.id]);
+  const longest = all.length ? Math.max(...all.map(e => +e.km||0)) : 0;
+
+  let h = `<div class="modal-title">🏃 <span>Cardio</span> · Q${q} ${y}</div>
+    <div class="modal-sub">Every session this quarter</div>
+    <div class="q-stats" style="margin-bottom:18px">
+      <div class="q-stat"><div class="q-sv">${all.length}</div><div class="q-sl">Sessions</div></div>
+      <div class="q-stat"><div class="q-sv">${totalKm}</div><div class="q-sl">Total km</div></div>
+      <div class="q-stat"><div class="q-sv">${longest}</div><div class="q-sl">Longest</div></div>
+      <div class="q-stat"><div class="q-sv">${kinds.length}</div><div class="q-sl">Types</div></div>
+    </div>`;
+
+  // weekly km bars
+  const kms = wks.map(wk => isFuture(wk) ? null : cardioKm(wk));
+  const kmax = Math.max(...kms.filter(v => v !== null), 1);
+  h += `<div class="drill-sec">Weekly distance</div>
+    <div class="spark" style="height:44px">${kms.map((v,i) =>
+      v === null
+        ? `<div class="spark-b" style="height:2px;background:var(--border);opacity:0.3"></div>`
+        : `<div class="spark-b" title="W${wkNum(keyToDate(wks[i]))}: ${v}km"
+             style="height:${Math.max(2, v/kmax*40)}px;background:var(--health);opacity:${v>0?0.8:1}"></div>`
+    ).join('')}</div>
+    <div class="spark-lbl"><span>W${wkNum(keyToDate(wks[0]))}</span><span>peak ${kmax} km</span></div>`;
+
+  if (!all.length) {
+    h += `<div class="empty" style="padding:30px 10px"><div class="empty-ic">🏃</div>
+      <p>No cardio logged this quarter yet.</p></div>`;
+  }
+
+  // split by kind
+  h += kinds.length ? `<div class="drill-sec" style="margin-top:20px">By type</div>` : '';
+  kinds.forEach(k => {
+    const b = byKind[k.id];
+    const pctShare = totalKm ? Math.round(b.km/totalKm*100) : 0;
+    h += `<div class="drill-kind">
+      <div class="drill-kind-h">
+        <span style="font-size:16px">${k.icon}</span>
+        <span class="drill-ex-n" style="flex:1">${k.name}</span>
+        <span class="drill-ex-m">${b.n} × · ${Math.round(b.km*10)/10} km</span>
+      </div>
+      <div class="prog-bar" style="margin:6px 0 4px"><div class="prog-fill" style="width:${pctShare}%;background:var(--health)"></div></div>
+      <div class="drill-ex-m">${pctShare}% of your distance</div>`;
+
+    // level progression
+    if (b.levels.length > 1) {
+      const lv = b.levels.map(x => x.level);
+      const mn = Math.min(...lv), mx = Math.max(...lv);
+      const span = mx - mn || 1;
+      const pts = lv.map((v,i) => `${(i/(lv.length-1))*100},${28 - ((v-mn)/span)*26}`).join(' ');
+      h += `<div class="drill-ex-m" style="margin-top:9px">Level ${mn}${mx!==mn?` → ${mx}`:''}</div>
+        <svg class="drill-line" viewBox="0 0 100 30" preserveAspectRatio="none">
+          <polyline points="${pts}" fill="none" stroke="var(--honey)" stroke-width="1.4"
+            vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+          ${lv.map((v,i) => `<circle cx="${(i/(lv.length-1))*100}" cy="${28 - ((v-mn)/span)*26}" r="1.6" fill="var(--honey)"/>`).join('')}
+        </svg>`;
+    } else if (b.levels.length === 1) {
+      h += `<div class="drill-ex-m" style="margin-top:7px">Level ${b.levels[0].level}</div>`;
+    }
+    h += `</div>`;
+  });
+
+  // session log
+  if (all.length) {
+    h += `<div class="drill-sec" style="margin-top:20px">Every session</div><div class="drill-ex">`;
+    all.slice().reverse().forEach(e => {
+      h += `<div class="drill-row">
+        <span class="drill-date">W${wkNum(e.date)} ${DAYS[e.day]}</span>
+        <span class="drill-sets">${CK(e.kind).icon} ${CK(e.kind).name}${e.level != null ? ` · L${e.level}` : ''}</span>
+        <span class="drill-vol">${e.km} km</span>
+      </div>`;
+    });
+    h += `</div>`;
+  }
+
+  h += `<div class="btn-row"><button class="btn-ghost" style="flex:1" onclick="closeModal()">Close</button></div>`;
+  openModal(h);
 }
 
 /* ══════════════════════════════════════════════════════
