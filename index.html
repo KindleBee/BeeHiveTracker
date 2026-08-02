@@ -310,6 +310,7 @@ header {
 }
 .ex-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
 .ex-name { font-size: 13.5px; font-weight: 700; flex: 1; min-width: 0; }
+.ex-last { font-size: 9.5px; color: var(--muted); margin-top: 2px; letter-spacing: 0.2px; }
 .ex-vol { font-size: 9.5px; color: var(--muted); white-space: nowrap; }
 .set-row { display: grid; grid-template-columns: 22px 1fr 1fr 26px; gap: 6px; align-items: center; margin-bottom: 5px; }
 .set-n { font-size: 10px; color: var(--muted); text-align: center; font-weight: 700; }
@@ -319,6 +320,7 @@ header {
   padding: 7px 8px; border-radius: 8px; outline: none; width: 100%; text-align: center;
 }
 .set-in:focus { border-color: var(--honey); }
+.set-in::placeholder { color: var(--muted); opacity: 0.5; }
 .set-del { background: none; border: none; color: var(--muted); font-size: 14px; cursor: pointer; padding: 3px; }
 .set-hdr { display: grid; grid-template-columns: 22px 1fr 1fr 26px; gap: 6px; margin-bottom: 4px; }
 .set-hdr span { font-size: 8px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; text-align: center; font-weight: 700; }
@@ -430,8 +432,12 @@ header {
 .wk-future { background: var(--surface); opacity: 0.35; }
 .wk-skip   { background: var(--surface); opacity: 0.45; }
 .q-tally { display: flex; gap: 8px; margin-top: 6px; font-size: 9.5px; color: var(--muted); font-weight: 600; }
-.spark { display: flex; align-items: flex-end; gap: 2px; height: 34px; margin-top: 7px; }
-.spark-b { flex: 1; border-radius: 2px 2px 0 0; min-height: 2px; background: var(--border2); }
+.spark { display: flex; align-items: flex-end; gap: 3px; height: 34px; margin-top: 7px; }
+.spark-b {
+  width: calc((100% - 12*3px) / 13);
+  flex: 0 0 auto;
+  border-radius: 2px 2px 0 0; min-height: 2px; background: var(--border2);
+}
 
 /* ══ REVIEW ══ */
 .rv-card { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 13px; margin-bottom: 14px; }
@@ -554,7 +560,7 @@ header {
 <!-- ═══ REVIEW ═══ -->
 <div class="view" id="v-review">
   <div class="ov-title">This <span>week</span></div>
-  <div class="ov-sub">Fix logs and adjust targets</div>
+  <div class="ov-sub">Fix logs and check your results</div>
   <div id="reviewBody"></div>
 </div>
 
@@ -618,7 +624,7 @@ const GOAL_SET = {
   categories: [
     { id:'health', name:'Health', icon:'🌿', color:'var(--health)', streak:true, goals:[
       { id:'strength', name:'Strength', icon:'🏋️', type:'detail', unit:'kg',      min:3, target:'days' },
-      { id:'cardio',   name:'Cardio',   icon:'🏃', type:'cardio', unit:'minutes', min:2, target:'days' },
+      { id:'cardio',   name:'Cardio',   icon:'🏃', type:'cardio', unit:'km', min:2, target:'days' },
       { id:'yoga',     name:'Yoga',     icon:'🧘', type:'tick',                    min:3, target:'days' },
       { id:'skill',    name:'Skill',    icon:'🤸', type:'tick',                    min:2, target:'days' },
     ]},
@@ -637,15 +643,10 @@ const GOAL_SET = {
 };
 
 const CARDIO_KINDS = [
-  { id:'stairs',    name:'Stairs',    icon:'🪜' },
-  { id:'bike',      name:'Bike',      icon:'🚲' },
-  { id:'treadmill', name:'Treadmill', icon:'🏃' },
-  { id:'outside',   name:'Outside',   icon:'🌳' },
-];
-const INTENSITIES = [
-  { id:'easy',     name:'Easy',     color:'var(--green)' },
-  { id:'moderate', name:'Moderate', color:'var(--honey)' },
-  { id:'hard',     name:'Hard',     color:'var(--red)' },
+  { id:'stairs',    name:'Stairs',    icon:'🪜', level:true  },
+  { id:'bike',      name:'Bike',      icon:'🚲', level:true  },
+  { id:'treadmill', name:'Treadmill', icon:'🏃', level:true  },
+  { id:'outside',   name:'Outside',   icon:'🌳', level:false },
 ];
 
 const CATS = GOAL_SET.categories;
@@ -687,10 +688,10 @@ function defaultTemplates() {
   return [
     { id:'push', name:'Push', exercises:[
       'Bench press','Incline bench press','Dips','Shoulder press',
-      'Face pulls / rear delt fly','Overhead triceps extension','Hollow body hold'
+      'Face pulls / rear delt fly','Overhead triceps extension'
     ]},
     { id:'pull', name:'Pull', exercises:[
-      'Lat pulldown (wide grip)','Vertical row','Pull-ups','Bent-over barbell row','Dead hangs'
+      'Lat pulldown (wide grip)','Vertical row','Pull-ups','Bent-over barbell row'
     ]},
     { id:'legs', name:'Legs', exercises:[
       'Deadlift','Zercher squat','Bulgarian split squat','Standing calf raise','Leg press','Seated leg curl'
@@ -803,18 +804,15 @@ function setCardio(wk, di, entry) {
   S.cardio[wk] = S.cardio[wk] || {};
   if (entry) S.cardio[wk][di] = entry;
   else delete S.cardio[wk][di];
-  const l = log(wk, 'cardio');
-  l[di] = entry ? 1 : 0;
-  const q = qty(wk, 'cardio');
-  q[di] = entry ? (+entry.minutes || 0) : 0;
+  log(wk, 'cardio')[di] = entry ? 1 : 0;
+  qty(wk, 'cardio')[di] = entry ? (+entry.km || 0) : 0;
   save();
 }
-function cardioMinutes(wk) {
+function cardioKm(wk) {
   const d = S.cardio[wk] || {};
-  return Object.keys(d).reduce((t,k) => t + (+d[k].minutes || 0), 0);
+  return +Object.keys(d).reduce((t,k) => t + (+d[k].km || 0), 0).toFixed(2);
 }
 const CK = id => CARDIO_KINDS.find(k => k.id === id) || CARDIO_KINDS[0];
-const IN = id => INTENSITIES.find(i => i.id === id) || INTENSITIES[1];
 
 /* Reps may be "5" or "30s" (a hold — excluded from volume).
    Kg may be "80", "BW", or "BW+20". */
@@ -1018,20 +1016,14 @@ function goalCard(g, cat) {
     line.innerHTML = `<span>Volume this week</span><b>${weekVolume(wk).toLocaleString('en-GB')} kg</b>`;
     card.appendChild(line);
   } else if (g.type === 'cardio') {
-    const mins = cardioMinutes(wk);
     const line = document.createElement('div');
     line.className = 'qty-line';
-    line.innerHTML = `<span>Time this week</span><b>${mins} min</b>`;
-    card.appendChild(line);
-  } else if (byQty) {
-    const line = document.createElement('div');
-    line.className = 'qty-line';
-    line.innerHTML = `<span>Days practised</span><b>${d}</b>`;
+    line.innerHTML = `<span>Distance this week</span><b>${fmtQty(cardioKm(wk), 'km')}</b>`;
     card.appendChild(line);
   } else if (g.type === 'quantity') {
     const line = document.createElement('div');
     line.className = 'qty-line';
-    line.innerHTML = `<span>${g.unit[0].toUpperCase()+g.unit.slice(1)} logged</span><b>${fmtQty(qs,g.unit)}</b>`;
+    line.innerHTML = `<span>${g.unit[0].toUpperCase()+g.unit.slice(1)} this week</span><b>${fmtQty(qs,g.unit)}</b>`;
     card.appendChild(line);
   }
 
@@ -1096,6 +1088,7 @@ function dotRowHTML(g, wk, maxDay, aw) {
 function fmtQty(v, unit) {
   if (unit === 'hours') return (Math.round(v*10)/10) + 'h';
   if (unit === 'minutes') return Math.round(v) + 'm';
+  if (unit === 'km') return (Math.round(v*10)/10) + 'km';
   return String(Math.round(v*10)/10);
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -1173,13 +1166,13 @@ document.getElementById('modal').addEventListener('click', function(e) {
 /* ══════════════════════════════════════════════════════
    CARDIO
    ══════════════════════════════════════════════════════ */
-let CD = { wk:null, i:0, kind:null, minutes:0, intensity:'moderate' };
+let CD = { wk:null, i:0, kind:null, km:0, level:null };
 
 function openCardio(wk, i) {
   const ex = cardioDay(wk, i);
   CD = ex
-    ? { wk, i, kind: ex.kind, minutes: +ex.minutes || 0, intensity: ex.intensity || 'moderate' }
-    : { wk, i, kind: null, minutes: 0, intensity: 'moderate' };
+    ? { wk, i, kind: ex.kind, km: +ex.km || 0, level: ex.level ?? null }
+    : { wk, i, kind: null, km: 0, level: null };
   paintCardio();
   document.getElementById('modal').classList.add('open');
 }
@@ -1188,6 +1181,8 @@ function paintCardio() {
   const ws = weekStart(keyToDate(CD.wk));
   const d = new Date(ws); d.setDate(d.getDate() + CD.i);
   const existing = cardioDay(CD.wk, CD.i);
+  const kind = CD.kind ? CK(CD.kind) : null;
+  const needsLevel = kind && kind.level;
 
   let h = `<div class="modal-title">🏃 <span>Cardio</span></div>
     <div class="modal-sub">${DAYS[CD.i]} ${d.getDate()} ${MON[d.getMonth()]}</div>
@@ -1198,24 +1193,30 @@ function paintCardio() {
         <span class="pick-ic">${k.icon}</span><span>${k.name}</span></button>`).join('')}
     </div>
 
-    <label>Duration</label>
-    <div class="qp-val" style="font-size:34px;margin-bottom:2px">${CD.minutes}</div>
-    <div class="qp-unit" style="margin-bottom:12px">minutes</div>
+    <label>Distance</label>
+    <div class="qp-val" style="font-size:34px;margin-bottom:2px">${CD.km.toFixed(1)}</div>
+    <div class="qp-unit" style="margin-bottom:12px">km</div>
     <div class="qp-chips" style="margin-bottom:12px">
-      ${[10,15,20,30,45].map(v => `<button class="qp-chip" onclick="cdAdd(${v})">+${v}</button>`).join('')}
+      ${[1,2,3,5].map(v => `<button class="qp-chip" onclick="cdAdd(${v})">+${v}</button>`).join('')}
     </div>
-    <div class="qp-step" style="margin-bottom:18px">
-      <button class="qp-sbtn" onclick="cdAdd(-5)">−</button>
-      <button class="qp-sbtn" onclick="cdAdd(5)">+</button>
-    </div>
+    <div class="qp-step" style="margin-bottom:${needsLevel ? '18px' : '4px'}">
+      <button class="qp-sbtn" onclick="cdAdd(-0.5)">−</button>
+      <button class="qp-sbtn" onclick="cdAdd(0.5)">+</button>
+    </div>`;
 
-    <label>Intensity</label>
-    <div class="pick-grid three">
-      ${INTENSITIES.map(x => `<button class="pick ${CD.intensity===x.id?'on':''}" onclick="cdInt('${x.id}')"
-        style="${CD.intensity===x.id?`border-color:${x.color};color:${x.color}`:''}">${x.name}</button>`).join('')}
-    </div>
+  if (needsLevel) {
+    h += `<label>${kind.name} level</label>
+      <div style="display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:4px">
+        <button class="qp-sbtn" onclick="cdLevel(-1)">−</button>
+        <div style="font-family:'Playfair Display',serif;font-size:32px;color:var(--honey);min-width:52px;text-align:center">
+          ${CD.level ?? '—'}
+        </div>
+        <button class="qp-sbtn" onclick="cdLevel(1)">+</button>
+      </div>
+      <p style="font-size:10px;color:var(--muted);text-align:center;margin-bottom:4px">1 to 20</p>`;
+  }
 
-    <div class="btn-row">
+  h += `<div class="btn-row">
       <button class="btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn-honey" onclick="saveCardio()">Save</button>
     </div>`;
@@ -1224,15 +1225,30 @@ function paintCardio() {
 
   document.getElementById('modalBody').innerHTML = h;
 }
-function cdKind(k) { CD.kind = k; paintCardio(); }
-function cdInt(v)  { CD.intensity = v; paintCardio(); }
-function cdAdd(v)  { CD.minutes = Math.max(0, CD.minutes + v); paintCardio(); }
+
+function cdKind(k) {
+  CD.kind = k;
+  const kind = CK(k);
+  if (!kind.level) CD.level = null;
+  else if (CD.level === null) CD.level = 8;
+  paintCardio();
+}
+function cdLevel(d) {
+  CD.level = Math.max(1, Math.min(20, (CD.level ?? 8) + d));
+  paintCardio();
+}
+function cdAdd(v) {
+  CD.km = Math.max(0, Math.round((CD.km + v) * 10) / 10);
+  paintCardio();
+}
 function saveCardio() {
-  if (!CD.kind)    { toast('Pick what you did'); return; }
-  if (!CD.minutes) { toast('Add a duration'); return; }
-  setCardio(CD.wk, CD.i, { kind: CD.kind, minutes: CD.minutes, intensity: CD.intensity });
+  if (!CD.kind) { toast('Pick what you did'); return; }
+  if (!CD.km)   { toast('Add a distance'); return; }
+  const entry = { kind: CD.kind, km: CD.km };
+  if (CK(CD.kind).level) entry.level = CD.level ?? 8;
+  setCardio(CD.wk, CD.i, entry);
   closeModal(); refresh();
-  toast(`${CK(CD.kind).name} · ${CD.minutes} min`);
+  toast(`${CK(CD.kind).name} · ${CD.km} km`);
 }
 function clearCardio() {
   setCardio(CD.wk, CD.i, null);
@@ -1273,6 +1289,20 @@ function flashSaved() {
   flashSaved._t = setTimeout(() => { el.style.opacity = '0.45'; el.textContent = 'saves as you go'; }, 1400);
 }
 
+/* Last session's numbers for an exercise, used as greyed-out hints */
+function hintFor(name, si) {
+  const prev = S.lastEx[name];
+  if (!prev || !prev[si]) return { reps:'', kg:'' };
+  return { reps: prev[si].reps ?? '', kg: prev[si].kg ?? '' };
+}
+function hintLine(name) {
+  const prev = S.lastEx[name];
+  if (!prev || !prev.length) return '';
+  const parts = prev.filter(s => s.reps || s.kg).map(s => `${s.reps ?? '?'}×${s.kg ?? '?'}`);
+  if (!parts.length) return '';
+  return parts.slice(0, 5).join('  ');
+}
+
 function paintSession() {
   const ws = weekStart(keyToDate(SESS.wk));
   const d = new Date(ws); d.setDate(d.getDate() + SESS.i);
@@ -1284,36 +1314,38 @@ function paintSession() {
       <span id="saveFlag" style="color:var(--green);font-weight:700;opacity:0.45;transition:opacity 0.3s">saves as you go</span>
     </div>`;
 
-  if (S.templates.length) {
-    html += `<div class="tpl-row">
-      ${S.templates.map(t => `<button class="tpl-chip" onclick="loadTemplate('${t.id}')">${esc(t.name)}</button>`).join('')}
-      <button class="tpl-chip" onclick="repeatLast()">↻ Repeat last</button>
-    </div>`;
-  }
+  html += `<div class="tpl-row">
+    ${S.templates.map(t => `<button class="tpl-chip" onclick="loadTemplate('${t.id}')">${esc(t.name)}</button>`).join('')}
+  </div>`;
 
   if (!SESS.exs.length) {
     html += `<div class="empty" style="padding:26px 10px">
       <div class="empty-ic">🏋️</div>
-      <p>Pick a template above, repeat your last session, or add an exercise.</p></div>`;
+      <p>Pick your session above, or add an exercise.</p></div>`;
   }
 
   SESS.exs.forEach((ex, ei) => {
     const evol = Math.round(ex.sets.reduce((s,x) => s + setVolume(x), 0));
+    const last = hintLine(ex.name);
     html += `<div class="ex-block">
       <div class="ex-head">
-        <span class="ex-name">${esc(ex.name)}</span>
-        <span class="ex-vol">${evol.toLocaleString('en-GB')} kg</span>
+        <div style="flex:1;min-width:0">
+          <div class="ex-name">${esc(ex.name)}</div>
+          ${last ? `<div class="ex-last">last: ${esc(last)}</div>` : ''}
+        </div>
+        <span class="ex-vol">${evol ? evol.toLocaleString('en-GB') + ' kg' : ''}</span>
         <button class="set-del" onclick="delEx(${ei})" aria-label="Remove exercise">✕</button>
       </div>
       <div class="set-hdr"><span>#</span><span>Reps</span><span>Kg</span><span></span></div>`;
     ex.sets.forEach((st, si) => {
       const filled = st.reps || st.kg;
+      const hint = hintFor(ex.name, si);
       html += `<div class="set-row">
         <span class="set-n" style="${filled?'color:var(--green)':''}">${filled ? '✓' : si+1}</span>
-        <input class="set-in" type="text" inputmode="numeric" value="${esc(st.reps ?? '')}" placeholder="—"
-          onchange="setVal(${ei},${si},'reps',this.value)">
-        <input class="set-in" type="text" value="${esc(st.kg ?? '')}" placeholder="—"
-          onchange="setVal(${ei},${si},'kg',this.value)">
+        <input class="set-in" type="text" inputmode="numeric" value="${esc(st.reps ?? '')}"
+          placeholder="${esc(hint.reps)}" onchange="setVal(${ei},${si},'reps',this.value)">
+        <input class="set-in" type="text" value="${esc(st.kg ?? '')}"
+          placeholder="${esc(hint.kg)}" onchange="setVal(${ei},${si},'kg',this.value)">
         <button class="set-del" onclick="delSet(${ei},${si})" aria-label="Remove set">✕</button>
       </div>`;
     });
@@ -1325,8 +1357,9 @@ function paintSession() {
       <button class="btn-honey" onclick="closeModal();refresh()">Done</button>
     </div>
     <p style="font-size:10px;color:var(--muted);margin-top:10px;line-height:1.6">
-      Every set is saved the moment you enter it, so you can log as you train and close the app between sets.<br>
-      Kg takes <b style="color:var(--text)">BW</b> or <b style="color:var(--text)">BW+20</b> for bodyweight work${S.bodyweight ? ` (yours: ${S.bodyweight} kg)` : ` — <span style="color:var(--honey)">set yours under More → Workout templates</span>`}.
+      Every set saves the moment you enter it, so you can log as you train.
+      Greyed numbers are what you did last time — type over them.<br>
+      Kg takes <b style="color:var(--text)">BW</b> or <b style="color:var(--text)">BW+20</b>${S.bodyweight ? ` (yours: ${S.bodyweight} kg)` : ` — <span style="color:var(--honey)">set yours under More → Workout templates</span>`}.
       Put an <b style="color:var(--text)">s</b> after a hold, like 30s, to keep it out of the volume total.
     </p>`;
 
@@ -1343,9 +1376,7 @@ function setVal(ei, si, field, v) {
   paintSession();
 }
 function addSet(ei) {
-  const sets = SESS.exs[ei].sets;
-  const last = sets[sets.length-1];
-  sets.push(last ? { reps: last.reps, kg: last.kg } : { reps: null, kg: null });
+  SESS.exs[ei].sets.push({ reps: null, kg: null });
   persist(true); paintSession();
 }
 function delSet(ei, si) { SESS.exs[ei].sets.splice(si,1); persist(true); paintSession(); }
@@ -1353,37 +1384,19 @@ function delEx(ei) { SESS.exs.splice(ei,1); persist(true); paintSession(); }
 function addEx() {
   const name = prompt('Exercise name');
   if (!name || !name.trim()) return;
-  const prev = S.lastEx[name.trim()];
-  SESS.exs.push({ name: name.trim(), sets: prev ? JSON.parse(JSON.stringify(prev)) : [{reps:null,kg:null}] });
+  SESS.exs.push({ name: name.trim(), sets: [{reps:null,kg:null}] });
   persist(true); paintSession();
 }
+
+/* Template tap starts the session fresh — nothing to delete */
 function loadTemplate(tid) {
   const t = S.templates.find(x => x.id === tid);
   if (!t) return;
-  t.exercises.forEach(n => {
-    if (SESS.exs.some(e => e.name === n)) return;
-    const prev = S.lastEx[n];
-    SESS.exs.push({ name: n, sets: prev ? JSON.parse(JSON.stringify(prev)) : [{reps:null,kg:null}] });
-  });
+  const hasEntries = SESS.exs.some(e => e.sets.some(s => s.reps || s.kg));
+  if (hasEntries && !confirm(`Start a fresh ${t.name} session?\n\nThis clears what you have entered for this day.`)) return;
+  SESS.exs = t.exercises.map(n => ({ name: n, sets: [{reps:null,kg:null}] }));
   persist(true); paintSession();
-  toast(t.name + ' loaded');
-}
-function repeatLast() {
-  const keys = Object.keys(S.sessions).sort().reverse();
-  for (const wk of keys) {
-    const dd = S.sessions[wk];
-    const idxs = Object.keys(dd).map(Number).sort((a,b)=>b-a);
-    for (const i of idxs) {
-      if (wk === SESS.wk && i === SESS.i) continue;
-      if (dd[i] && dd[i].length) {
-        SESS.exs = JSON.parse(JSON.stringify(dd[i]));
-        persist(true); paintSession();
-        toast('Last session copied');
-        return;
-      }
-    }
-  }
-  toast('No previous session yet');
+  toast(t.name + ' ready');
 }
 function clearSession() {
   if (!confirm('Clear this training day?')) return;
@@ -1625,7 +1638,7 @@ function weekBody(wk, ed) {
 
       let right;
       if (!scored) right = `<b style="color:var(--life)">${fmtQty(qs, g.unit)}</b>`;
-      else if (g.type === 'cardio') right = `${ACH_EMOJI[a]} ${have}/${goal} · ${cardioMinutes(wk)}min`;
+      else if (g.type === 'cardio') right = `${ACH_EMOJI[a]} ${have}/${goal} · ${fmtQty(cardioKm(wk),'km')}`;
       else if (g.type === 'detail') right = `${ACH_EMOJI[a]} ${have}/${goal} · ${weekVolume(wk).toLocaleString('en-GB')}kg`;
       else if (byQty) right = `${ACH_EMOJI[a]} ${fmtQty(have,g.unit)}/${fmtQty(goal,g.unit)} · ${d}d`;
       else if (g.type === 'quantity') right = `${ACH_EMOJI[a]} ${have}/${goal} · ${fmtQty(qs,g.unit)}`;
@@ -1634,7 +1647,6 @@ function weekBody(wk, ed) {
       h += `<div class="pw-g"><span style="font-size:15px">${g.icon}</span>
         <span class="pw-gn">${g.name}</span><span class="pw-gr">${right}</span></div>`;
 
-      // cardio detail lines
       if (g.type === 'cardio') {
         const cd = S.cardio[wk] || {};
         const idxs = Object.keys(cd).map(Number).sort((a,b)=>a-b);
@@ -1642,8 +1654,8 @@ function weekBody(wk, ed) {
           h += `<div style="display:flex;gap:5px;flex-wrap:wrap;padding:2px 0 6px">`;
           idxs.forEach(i => {
             const c = cd[i];
-            h += `<span class="cardio-tag" style="border-color:${IN(c.intensity).color}40;color:${IN(c.intensity).color}">
-              ${CK(c.kind).icon} ${DAYS[i]} ${c.minutes}m</span>`;
+            const lvl = c.level != null ? ` L${c.level}` : '';
+            h += `<span class="cardio-tag">${CK(c.kind).icon} ${DAYS[i]} ${c.km}km${lvl}</span>`;
           });
           h += `</div>`;
         }
@@ -1800,8 +1812,8 @@ function quarterPanel(tab, q, y) {
         const avg = past.length ? tot/past.length : 0;
         sub = `${fmtQty(tot,g.unit)} total · ${fmtQty(avg,g.unit)}/wk avg`;
       } else if (g.type === 'cardio') {
-        const tot = past.reduce((s,wk) => s + cardioMinutes(wk), 0);
-        sub = `${m+x}/${tracked} wks · ${pct}% · ${Math.round(tot/60*10)/10}h`;
+        const tot = past.reduce((s,wk) => s + cardioKm(wk), 0);
+        sub = `${m+x}/${tracked} wks · ${pct}% · ${fmtQty(tot,'km')}`;
       } else if (g.type === 'detail') {
         const tot = past.reduce((s,wk) => s + weekVolume(wk), 0);
         sub = `${m+x}/${tracked} wks · ${pct}% · ${Math.round(tot/1000)}t volume`;
@@ -1838,12 +1850,14 @@ function quarterPanel(tab, q, y) {
       }
 
       if (g.type !== 'tick') {
-        const vals = past.map(wk =>
+        const vals = wks.map(wk => isFuture(wk) ? null :
           g.type === 'detail' ? weekVolume(wk) :
-          g.type === 'cardio' ? cardioMinutes(wk) : qtySum(wk, g.id));
-        const max = Math.max(...vals, 1);
+          g.type === 'cardio' ? cardioKm(wk) : qtySum(wk, g.id));
+        const max = Math.max(...vals.filter(v => v !== null), 1);
         h += `<div class="spark">${vals.map(v =>
-          `<div class="spark-b" style="height:${Math.max(2, v/max*34)}px;background:${v>0?cat.color:'var(--border)'};opacity:${v>0?0.75:1}"></div>`
+          v === null
+            ? `<div class="spark-b" style="height:2px;background:var(--border);opacity:0.35"></div>`
+            : `<div class="spark-b" style="height:${Math.max(2, v/max*34)}px;background:${v>0?cat.color:'var(--border)'};opacity:${v>0?0.75:1}"></div>`
         ).join('')}</div>`;
       }
 
@@ -1865,17 +1879,19 @@ function renderReview() {
   const wk = NOW_WK;
   const aw = awayArr(wk);
 
-  let h = `<div class="info-box">
+  const prevD = new Date(weekStart(TODAY)); prevD.setDate(prevD.getDate() - 7);
+  const prevWk = wkKey(prevD);
+  const hasPrev = prevWk >= START_WK;
+
+  c.innerHTML = `<div class="info-box">
     <b>Week ${wkNum(TODAY)}</b> · ${fmtRange(weekStart(TODAY))}<br>
-    Fix anything you forgot to log, and set this week's targets.
+    Tap any day to add something you forgot, or to correct a mistake.
   </div>
   <div class="away-strip" style="margin-bottom:18px">
     <div class="away-label">Days <b>away or at an event</b></div>
     <div class="away-toggles">
       ${[0,1,2,3,4,5,6].map(i => `<button class="away-tog ${aw[i]?'on':''}" onclick="toggleAway(${i});renderReview()">${DAYS[i][0]}</button>`).join('')}
     </div></div>`;
-
-  c.innerHTML = h;
 
   CATS.forEach(cat => {
     const head = document.createElement('div');
@@ -1890,51 +1906,57 @@ function renderReview() {
       const d = days(wk, g.id);
       const qs = qtySum(wk, g.id);
       const [have, goal] = prog(wk, g.id);
+      const a = achLive(wk, g.id);
       const scored = isScored(g);
       const byQty = g.target === 'quantity';
 
-      const row = document.createElement('div');
-      row.className = 'rv-g';
-
-      const headline = g.type === 'tick' || g.type === 'detail' || g.type === 'cardio'
+      const headline = (g.type === 'tick' || g.type === 'detail' || g.type === 'cardio')
         ? d : fmtQty(qs, g.unit);
 
+      let status;
+      if (!scored) status = `${fmtQty(qs, g.unit)} logged`;
+      else if (goal === 0) status = 'no target';
+      else if (a === 'exceed') status = `<span style="color:var(--star)">⭐ ${byQty?fmtQty(have,g.unit):have} of ${byQty?fmtQty(goal,g.unit):goal}</span>`;
+      else if (a === 'met') status = `<span style="color:var(--green)">✓ ${byQty?fmtQty(have,g.unit):have} of ${byQty?fmtQty(goal,g.unit):goal}</span>`;
+      else status = `${byQty?fmtQty(have,g.unit):have} of ${byQty?fmtQty(goal,g.unit):goal}`;
+
+      const row = document.createElement('div');
+      row.className = 'rv-g';
       row.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
           <span style="font-size:13.5px;font-weight:700">${g.icon} ${g.name}</span>
           <span style="font-family:'Playfair Display',serif;font-size:17px;color:var(--honey)">${headline}</span>
         </div>
-        <div class="dots" style="margin:8px 0">${dotRowHTML(g, wk, TODAY_I, aw)}</div>`;
-
-      if (scored) {
-        const lbl = byQty ? `${g.unit[0].toUpperCase()+g.unit.slice(1)} target` : 'Days target · max 7';
-        const fn  = byQty ? 'bumpQtyLive' : 'bumpMinLive';
-        row.innerHTML += `<div style="display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:10.5px;color:var(--muted)">${lbl}</span>
-          <div class="rv-ctrl">
-            <button class="rv-btn" onclick="${fn}('${g.id}',-1)">−</button>
-            <span class="rv-val" id="rm_${g.id}">${goal}</span>
-            <button class="rv-btn" onclick="${fn}('${g.id}',1)">+</button>
-          </div></div>`;
-      }
-
+        <div class="dots" style="margin:8px 0 6px">${dotRowHTML(g, wk, TODAY_I, aw)}</div>
+        <div style="font-size:10.5px;color:var(--muted)">${status}</div>`;
       card.appendChild(row);
     });
 
     c.appendChild(card);
   });
-}
-function bumpMinLive(id, d) {
-  setMin(NOW_WK, id, getMin(NOW_WK, id) + d);
-  const el = document.getElementById('rm_' + id);
-  if (el) el.textContent = getMin(NOW_WK, id);
-}
-function bumpQtyLive(id, dir) {
-  const g = G(id);
-  const step = g.unit === 'minutes' ? 15 : g.unit === 'pages' ? 5 : 1;
-  setQtyT(NOW_WK, id, getQtyT(NOW_WK, id) + dir * step);
-  const el = document.getElementById('rm_' + id);
-  if (el) el.textContent = getQtyT(NOW_WK, id);
+
+  // Last week, for comparison
+  if (hasPrev) {
+    const h = document.createElement('div');
+    h.style.cssText = 'margin-top:26px';
+    let inner = `<div class="ov-sub" style="margin-bottom:12px">Last week · W${wkNum(prevD)}</div>
+      <div class="rv-card">`;
+    CATS.forEach(cat => {
+      cat.goals.filter(isScored).forEach(g => {
+        const a = ach(prevWk, g.id);
+        const [have, goal] = prog(prevWk, g.id);
+        const byQty = g.target === 'quantity';
+        const shown = byQty ? `${fmtQty(have,g.unit)}/${fmtQty(goal,g.unit)}` : `${have}/${goal}`;
+        inner += `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:12.5px">${g.icon} ${g.name}</span>
+          <span style="font-size:12px;color:var(--muted)">${ACH_EMOJI[a]} ${shown}</span>
+        </div>`;
+      });
+    });
+    inner += `</div>`;
+    h.innerHTML = inner;
+    c.appendChild(h);
+  }
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1976,7 +1998,7 @@ function allWeeks() {
 }
 
 function exportWeekly() {
-  const rows = [['week_number','week_start','category','goal','type','target_basis','unit','days_done','days_target','quantity','quantity_target','outcome','volume_kg','cardio_minutes','days_away','note']];
+  const rows = [['week_number','week_start','category','goal','type','target_basis','unit','days_done','days_target','quantity','quantity_target','outcome','volume_kg','cardio_km','days_away','note']];
   allWeeks().forEach(wk => {
     const wn = wkNum(keyToDate(wk));
     GOALS.forEach(g => {
@@ -1988,7 +2010,7 @@ function exportWeekly() {
         g.target === 'quantity' ? getQtyT(wk,g.id) : '',
         ach(wk, g.id),
         g.type==='detail' ? weekVolume(wk) : '',
-        g.type==='cardio' ? cardioMinutes(wk) : '',
+        g.type==='cardio' ? cardioKm(wk) : '',
         awayDays(wk), getNote(wk, g.id)
       ]);
     });
@@ -1999,14 +2021,14 @@ function exportWeekly() {
 }
 
 function exportCardio() {
-  const rows = [['week_number','date','day','type','minutes','intensity']];
+  const rows = [['week_number','date','day','type','km','level']];
   Object.keys(S.cardio).sort().forEach(wk => {
     const ws = keyToDate(wk);
     Object.keys(S.cardio[wk]).map(Number).sort((a,b)=>a-b).forEach(i => {
       const c = S.cardio[wk][i];
       const d = new Date(ws); d.setDate(d.getDate() + i);
       const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      rows.push([wkNum(d), ds, DAYS[i], CK(c.kind).name, c.minutes, IN(c.intensity).name]);
+      rows.push([wkNum(d), ds, DAYS[i], CK(c.kind).name, c.km, c.level ?? '']);
     });
   });
   if (rows.length === 1) { toast('No cardio logged yet'); return; }
