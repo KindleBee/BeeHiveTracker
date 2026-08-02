@@ -174,10 +174,30 @@ header {
 .dot.qty { color: var(--green); }
 .dot.qty.has { border-color: rgba(109,191,124,0.5); background: rgba(109,191,124,0.1); }
 .dot.hours.has { border-color: rgba(176,131,224,0.5); background: rgba(176,131,224,0.12); color: var(--life); }
+.dot.cardio.has { border-color: rgba(232,160,64,0.55); background: rgba(232,160,64,0.14); }
 .dot.today-d { border-color: var(--honey); }
 .dot.away-d { border-style: dashed; border-color: var(--away); }
 .dot.future { opacity: 0.28; cursor: default; }
 .dot:active:not(.future) { transform: scale(0.88); }
+
+/* picker grid for cardio */
+.pick-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; }
+.pick-grid.three { grid-template-columns: repeat(3,1fr); }
+.pick {
+  background: var(--surface); border: 1.5px solid var(--border);
+  color: var(--text); font-family: 'Nunito', sans-serif;
+  font-size: 13px; font-weight: 700; padding: 12px 8px;
+  border-radius: 12px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  transition: all 0.15s;
+}
+.pick.on { border-color: var(--honey); color: var(--honey); background: rgba(245,166,35,0.08); }
+.pick-ic { font-size: 19px; line-height: 1; }
+.cardio-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 9.5px; font-weight: 700; padding: 2px 7px;
+  border-radius: 9px; border: 1px solid var(--border); color: var(--muted);
+}
 
 /* ══ PROGRESS ══ */
 .prog-row { display: flex; align-items: center; gap: 8px; }
@@ -597,23 +617,36 @@ const GOAL_SET = {
   startDate: '2026-07-20',      // Monday of week 30, 2026
   categories: [
     { id:'health', name:'Health', icon:'🌿', color:'var(--health)', streak:true, goals:[
-      { id:'strength', name:'Strength', icon:'🏋️', type:'detail',   unit:'kg',       min:3, qty:null },
-      { id:'yoga',     name:'Yoga',     icon:'🧘', type:'tick',                       min:3, qty:null },
-      { id:'skill',    name:'Skill',    icon:'🤸', type:'tick',                       min:2, qty:null },
+      { id:'strength', name:'Strength', icon:'🏋️', type:'detail', unit:'kg',      min:3, target:'days' },
+      { id:'cardio',   name:'Cardio',   icon:'🏃', type:'cardio', unit:'minutes', min:2, target:'days' },
+      { id:'yoga',     name:'Yoga',     icon:'🧘', type:'tick',                    min:3, target:'days' },
+      { id:'skill',    name:'Skill',    icon:'🤸', type:'tick',                    min:2, target:'days' },
     ]},
     { id:'learning', name:'Learning', icon:'📚', color:'var(--learning)', streak:true, goals:[
-      { id:'reading',  name:'Reading',  icon:'📖', type:'quantity', unit:'chapters', min:3, qty:null, book:true },
-      { id:'french',   name:'French',   icon:'🇫🇷', type:'quantity', unit:'chapters', min:2, qty:null },
-      { id:'piano',    name:'Piano',    icon:'🎹', type:'quantity', unit:'minutes',  min:3, qty:null },
-      { id:'lean',     name:'LEAN',     icon:'📐', type:'quantity', unit:'pages',    min:1, qty:null },
+      { id:'reading',  name:'Reading',  icon:'📖', type:'quantity', unit:'chapters', min:1, qty:2, target:'quantity', book:true },
+      { id:'french',   name:'French',   icon:'🇫🇷', type:'quantity', unit:'chapters', min:1, qty:2, target:'quantity' },
+      { id:'piano',    name:'Piano',    icon:'🎹', type:'quantity', unit:'minutes',  min:3, target:'days' },
+      { id:'lean',     name:'LEAN',     icon:'📐', type:'quantity', unit:'pages',    min:1, target:'days' },
     ]},
     { id:'life', name:'Life', icon:'🌍', color:'var(--life)', streak:true, goals:[
-      { id:'cooking',  name:'Own cooking', icon:'🍳', type:'tick',                    min:4, qty:null },
-      { id:'invest',   name:'Investments', icon:'📈', type:'tick',                    min:1, qty:null },
-      { id:'gaming',   name:'Gaming / Movies', icon:'🎮', type:'hours', unit:'hours', min:0, qty:null, scored:false },
+      { id:'cooking',  name:'Own cooking', icon:'🍳', type:'tick',                    min:4, target:'days' },
+      { id:'invest',   name:'Investments', icon:'📈', type:'tick',                    min:1, target:'days' },
+      { id:'gaming',   name:'Gaming / Movies', icon:'🎮', type:'hours', unit:'hours', min:0, target:'days', scored:false },
     ]},
   ]
 };
+
+const CARDIO_KINDS = [
+  { id:'stairs',    name:'Stairs',    icon:'🪜' },
+  { id:'bike',      name:'Bike',      icon:'🚲' },
+  { id:'treadmill', name:'Treadmill', icon:'🏃' },
+  { id:'outside',   name:'Outside',   icon:'🌳' },
+];
+const INTENSITIES = [
+  { id:'easy',     name:'Easy',     color:'var(--green)' },
+  { id:'moderate', name:'Moderate', color:'var(--honey)' },
+  { id:'hard',     name:'Hard',     color:'var(--red)' },
+];
 
 const CATS = GOAL_SET.categories;
 const GOALS = CATS.flatMap(c => c.goals.map(g => ({ ...g, catId: c.id, catColor: c.color })));
@@ -642,7 +675,7 @@ function blank() {
     notes: {},     // wk -> goalId -> str
     away: {},      // wk -> [0/1 x7]
     sessions: {},  // wk -> dayIdx -> [{name, sets:[{reps,kg}]}]
-    partial: {},   // wk -> dayIdx -> true  (strength logged without full detail)
+    cardio: {},    // wk -> dayIdx -> {kind, minutes, intensity}
     books: { current: null, finished: [] },
     bodyweight: null,
     templates: defaultTemplates(),
@@ -660,7 +693,7 @@ function defaultTemplates() {
       'Lat pulldown (wide grip)','Vertical row','Pull-ups','Bent-over barbell row','Dead hangs'
     ]},
     { id:'legs', name:'Legs', exercises:[
-      'Deadlift','Zercher squat','Bulgarian split squat','Standing calf raise','Leg press','Leg curl'
+      'Deadlift','Zercher squat','Bulgarian split squat','Standing calf raise','Leg press','Seated leg curl'
     ]},
   ];
 }
@@ -762,6 +795,27 @@ function sessions(wk, di) {
   return S.sessions[wk][di];
 }
 
+function cardioDay(wk, di) {
+  S.cardio[wk] = S.cardio[wk] || {};
+  return S.cardio[wk][di] || null;
+}
+function setCardio(wk, di, entry) {
+  S.cardio[wk] = S.cardio[wk] || {};
+  if (entry) S.cardio[wk][di] = entry;
+  else delete S.cardio[wk][di];
+  const l = log(wk, 'cardio');
+  l[di] = entry ? 1 : 0;
+  const q = qty(wk, 'cardio');
+  q[di] = entry ? (+entry.minutes || 0) : 0;
+  save();
+}
+function cardioMinutes(wk) {
+  const d = S.cardio[wk] || {};
+  return Object.keys(d).reduce((t,k) => t + (+d[k].minutes || 0), 0);
+}
+const CK = id => CARDIO_KINDS.find(k => k.id === id) || CARDIO_KINDS[0];
+const IN = id => INTENSITIES.find(i => i.id === id) || INTENSITIES[1];
+
 /* Reps may be "5" or "30s" (a hold — excluded from volume).
    Kg may be "80", "BW", or "BW+20". */
 function parseReps(v) {
@@ -799,18 +853,28 @@ function weekVolume(wk) {
 /* ══════════════════════════════════════════════════════
    ACHIEVEMENT
    'fail' | 'met' | 'exceed' | 'skip' | 'paused' | 'live'
-   Days decide the outcome. Quantity target is secondary.
+   Goals score on days, or on quantity where target='quantity'.
    ══════════════════════════════════════════════════════ */
 function ach(wk, id) {
   const g = G(id);
   if (!g || !isScored(g)) return 'skip';
-  const min = getMin(wk, id);
-  if (min === 0) return 'skip';
-  const d = days(wk, id);
-  if (d > min) return 'exceed';
-  if (d >= min) return 'met';
+
+  const byQty = g.target === 'quantity';
+  const goal = byQty ? getQtyT(wk, id) : getMin(wk, id);
+  if (goal === 0) return 'skip';
+
+  const have = byQty ? qtySum(wk, id) : days(wk, id);
+  if (have > goal) return 'exceed';
+  if (have >= goal) return 'met';
   if (isNow(wk) || isFuture(wk)) return 'live';
   return awayDays(wk) > 0 ? 'paused' : 'fail';
+}
+
+/* Progress pair for display: [current, target, unitLabel] */
+function prog(wk, id) {
+  const g = G(id);
+  if (g.target === 'quantity') return [qtySum(wk,id), getQtyT(wk,id), g.unit];
+  return [days(wk,id), getMin(wk,id), 'days'];
 }
 function achLive(wk, id) {
   const a = ach(wk, id);
@@ -889,31 +953,34 @@ function renderWeek() {
 function goalCard(g, cat) {
   const wk = NOW_WK;
   const l = log(wk, g.id), q = qty(wk, g.id), aw = awayArr(wk);
-  const d = days(wk, g.id), min = getMin(wk, g.id);
-  const qs = qtySum(wk, g.id), qt = getQtyT(wk, g.id);
+  const d = days(wk, g.id);
+  const qs = qtySum(wk, g.id);
+  const [have, goal, unitLbl] = prog(wk, g.id);
   const a = achLive(wk, g.id);
   const hasNote = getNote(wk, g.id).trim().length > 0;
   const scored = isScored(g);
+  const byQty = g.target === 'quantity';
 
   const card = document.createElement('div');
   card.className = 'goal-card' + (scored ? '' : ' unscored');
   card.style.borderLeftColor = cat.color;
 
-  // badge
   let badge = '';
   if (!scored) badge = `<span class="ach-badge ach-skip">observed</span>`;
-  else if (min === 0) badge = `<span class="ach-badge ach-skip">no target</span>`;
+  else if (goal === 0) badge = `<span class="ach-badge ach-skip">no target</span>`;
   else if (a === 'exceed') badge = `<span class="ach-badge ach-exceed">⭐ exceeded</span>`;
   else if (a === 'met') badge = `<span class="ach-badge ach-met">✓ reached</span>`;
 
-  // subtitle
   let sub;
-  if (!scored) sub = `${qs} ${g.unit} this week`;
-  else if (min === 0) sub = 'Not targeted this week';
-  else sub = `${d} of ${min} days` + (d > min ? ` · +${d-min}` : '');
+  if (!scored) sub = `${fmtQty(qs, g.unit)} this week`;
+  else if (goal === 0) sub = 'Not targeted this week';
+  else if (byQty) sub = `${fmtQty(have, g.unit)} of ${fmtQty(goal, g.unit)} · ${d} ${d===1?'day':'days'}`;
+  else sub = `${have} of ${goal} days` + (have > goal ? ` · +${have-goal}` : '');
 
-  // headline number
-  const headline = (g.type === 'quantity' || g.type === 'hours') ? qs : (g.type === 'detail' ? d : d);
+  const headline = g.type === 'tick' ? d
+    : g.type === 'detail' ? d
+    : byQty ? fmtQty(qs, g.unit)
+    : fmtQty(qs, g.unit);
 
   card.innerHTML = `
     <div class="goal-head">
@@ -930,42 +997,13 @@ function goalCard(g, cat) {
       </div>
     </div>`;
 
-  // dots
-  const dots = document.createElement('div');
-  dots.className = 'dots';
-  for (let i = 0; i < 7; i++) {
-    const fut = i > TODAY_I;
-    const done = l[i] === 1;
-    const v = q[i] || 0;
-    let cls = 'dot', inner = '<span class="pip"></span>';
+  card.appendChild(dotRow(g, wk, TODAY_I, aw));
 
-    if (g.type === 'quantity') {
-      cls += ' qty' + (v > 0 ? ' has' : '');
-      inner = v > 0 ? `<span>${fmtQty(v, g.unit)}</span>` : '<span class="pip"></span>';
-    } else if (g.type === 'hours') {
-      cls += ' hours' + (v > 0 ? ' has' : '');
-      inner = v > 0 ? `<span>${v}</span>` : '<span class="pip"></span>';
-    } else if (done) cls += ' done';
-
-    if (i === TODAY_I) cls += ' today-d';
-    if (aw[i]) cls += ' away-d';
-    if (fut) cls += ' future';
-
-    const handler = fut ? '' :
-      g.type === 'quantity' || g.type === 'hours' ? `openQP('${g.id}',${i},'${wk}')` :
-      g.type === 'detail' ? `openSession('${wk}',${i})` :
-      `tick('${g.id}',${i},'${wk}')`;
-
-    dots.innerHTML += `<div class="dot-wrap"><span class="dot-lbl">${DAYS[i][0]}</span>
-      <button class="${cls}" ${fut?'disabled':''} onclick="${handler}" aria-label="${g.name} ${DAYS[i]}">${inner}</button></div>`;
-  }
-  card.appendChild(dots);
-
-  // progress
-  if (scored && min > 0) {
-    const pct = Math.min(100, Math.round(d / min * 100));
-    const col = d > min ? 'var(--star)' : d >= min ? 'var(--green)' : cat.color;
-    const lbl = d >= min ? '✓ reached' : `${min - d} to go`;
+  if (scored && goal > 0) {
+    const pct = Math.min(100, Math.round(have / goal * 100));
+    const col = have > goal ? 'var(--star)' : have >= goal ? 'var(--green)' : cat.color;
+    const remain = byQty ? fmtQty(Math.max(0, goal-have), g.unit) : (goal - have);
+    const lbl = have >= goal ? '✓ reached' : `${remain} to go`;
     const bar = document.createElement('div');
     bar.className = 'prog-row';
     bar.innerHTML = `<div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${col}"></div></div>
@@ -973,24 +1011,30 @@ function goalCard(g, cat) {
     card.appendChild(bar);
   }
 
-  // quantity secondary line
-  if (g.type === 'quantity' || g.type === 'detail') {
+  // secondary line
+  if (g.type === 'detail') {
     const line = document.createElement('div');
     line.className = 'qty-line';
-    if (g.type === 'detail') {
-      const vol = weekVolume(wk);
-      line.innerHTML = `<span>Volume this week</span><b>${vol.toLocaleString('en-GB')} kg</b>`;
-    } else if (qt > 0) {
-      const hit = qs >= qt;
-      line.innerHTML = `<span>${g.unit} target</span>
-        <span class="${hit?'hit':''}"><b>${fmtQty(qs,g.unit)}</b> / ${fmtQty(qt,g.unit)} ${hit?'✓':''}</span>`;
-    } else {
-      line.innerHTML = `<span>${g.unit[0].toUpperCase()+g.unit.slice(1)} logged</span><b>${fmtQty(qs,g.unit)}</b>`;
-    }
+    line.innerHTML = `<span>Volume this week</span><b>${weekVolume(wk).toLocaleString('en-GB')} kg</b>`;
+    card.appendChild(line);
+  } else if (g.type === 'cardio') {
+    const mins = cardioMinutes(wk);
+    const line = document.createElement('div');
+    line.className = 'qty-line';
+    line.innerHTML = `<span>Time this week</span><b>${mins} min</b>`;
+    card.appendChild(line);
+  } else if (byQty) {
+    const line = document.createElement('div');
+    line.className = 'qty-line';
+    line.innerHTML = `<span>Days practised</span><b>${d}</b>`;
+    card.appendChild(line);
+  } else if (g.type === 'quantity') {
+    const line = document.createElement('div');
+    line.className = 'qty-line';
+    line.innerHTML = `<span>${g.unit[0].toUpperCase()+g.unit.slice(1)} logged</span><b>${fmtQty(qs,g.unit)}</b>`;
     card.appendChild(line);
   }
 
-  // current book
   if (g.book && S.books.current) {
     const bl = document.createElement('div');
     bl.className = 'qty-line';
@@ -1002,6 +1046,53 @@ function goalCard(g, cat) {
   return card;
 }
 
+/* Shared dot row builder — used by week view, review and history edit */
+function dotRow(g, wk, maxDay, aw) {
+  const l = log(wk, g.id), q = qty(wk, g.id);
+  const dots = document.createElement('div');
+  dots.className = 'dots';
+  dots.innerHTML = dotRowHTML(g, wk, maxDay, aw);
+  return dots;
+}
+
+function dotRowHTML(g, wk, maxDay, aw) {
+  const l = log(wk, g.id), q = qty(wk, g.id);
+  let h = '';
+  for (let i = 0; i < 7; i++) {
+    const fut = maxDay !== null && i > maxDay;
+    const v = q[i] || 0;
+    let cls = 'dot', inner = '<span class="pip"></span>';
+
+    if (g.type === 'cardio') {
+      const c = cardioDay(wk, i);
+      cls += ' cardio' + (c ? ' has' : '');
+      if (c) inner = `<span style="font-size:11px">${CK(c.kind).icon}</span>`;
+    } else if (g.type === 'quantity') {
+      cls += ' qty' + (v > 0 ? ' has' : '');
+      if (v > 0) inner = `<span>${fmtQty(v, g.unit)}</span>`;
+    } else if (g.type === 'hours') {
+      cls += ' hours' + (v > 0 ? ' has' : '');
+      if (v > 0) inner = `<span>${v}</span>`;
+    } else if (g.type === 'detail') {
+      if (l[i]) { cls += ' done'; inner = '<span class="pip"></span>'; }
+    } else if (l[i]) cls += ' done';
+
+    if (aw && aw[i]) cls += ' away-d';
+    if (maxDay !== null && i === maxDay) cls += ' today-d';
+    if (fut) cls += ' future';
+
+    const handler = fut ? '' :
+      g.type === 'cardio'   ? `openCardio('${wk}',${i})` :
+      g.type === 'detail'   ? `openSession('${wk}',${i})` :
+      (g.type === 'quantity' || g.type === 'hours') ? `openQP('${g.id}',${i},'${wk}')` :
+      `tickAny('${wk}','${g.id}',${i})`;
+
+    h += `<div class="dot-wrap"><span class="dot-lbl">${DAYS[i][0]}</span>
+      <button class="${cls}" ${fut?'disabled':''} onclick="${handler}" aria-label="${g.name} ${DAYS[i]}">${inner}</button></div>`;
+  }
+  return h;
+}
+
 function fmtQty(v, unit) {
   if (unit === 'hours') return (Math.round(v*10)/10) + 'h';
   if (unit === 'minutes') return Math.round(v) + 'm';
@@ -1009,12 +1100,13 @@ function fmtQty(v, unit) {
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-function tick(id, i, wk) {
+function tickAny(wk, id, i) {
   const l = log(wk, id);
   l[i] = l[i] ? 0 : 1;
   save(); refresh();
   if (l[i]) toast('Logged');
 }
+function tick(id, i, wk) { tickAny(wk, id, i); }
 function toggleAway(i) {
   const a = awayArr(NOW_WK);
   a[i] = a[i] ? 0 : 1;
@@ -1079,7 +1171,77 @@ document.getElementById('modal').addEventListener('click', function(e) {
 });
 
 /* ══════════════════════════════════════════════════════
-   STRENGTH SESSION
+   CARDIO
+   ══════════════════════════════════════════════════════ */
+let CD = { wk:null, i:0, kind:null, minutes:0, intensity:'moderate' };
+
+function openCardio(wk, i) {
+  const ex = cardioDay(wk, i);
+  CD = ex
+    ? { wk, i, kind: ex.kind, minutes: +ex.minutes || 0, intensity: ex.intensity || 'moderate' }
+    : { wk, i, kind: null, minutes: 0, intensity: 'moderate' };
+  paintCardio();
+  document.getElementById('modal').classList.add('open');
+}
+
+function paintCardio() {
+  const ws = weekStart(keyToDate(CD.wk));
+  const d = new Date(ws); d.setDate(d.getDate() + CD.i);
+  const existing = cardioDay(CD.wk, CD.i);
+
+  let h = `<div class="modal-title">🏃 <span>Cardio</span></div>
+    <div class="modal-sub">${DAYS[CD.i]} ${d.getDate()} ${MON[d.getMonth()]}</div>
+
+    <label>What did you do</label>
+    <div class="pick-grid">
+      ${CARDIO_KINDS.map(k => `<button class="pick ${CD.kind===k.id?'on':''}" onclick="cdKind('${k.id}')">
+        <span class="pick-ic">${k.icon}</span><span>${k.name}</span></button>`).join('')}
+    </div>
+
+    <label>Duration</label>
+    <div class="qp-val" style="font-size:34px;margin-bottom:2px">${CD.minutes}</div>
+    <div class="qp-unit" style="margin-bottom:12px">minutes</div>
+    <div class="qp-chips" style="margin-bottom:12px">
+      ${[10,15,20,30,45].map(v => `<button class="qp-chip" onclick="cdAdd(${v})">+${v}</button>`).join('')}
+    </div>
+    <div class="qp-step" style="margin-bottom:18px">
+      <button class="qp-sbtn" onclick="cdAdd(-5)">−</button>
+      <button class="qp-sbtn" onclick="cdAdd(5)">+</button>
+    </div>
+
+    <label>Intensity</label>
+    <div class="pick-grid three">
+      ${INTENSITIES.map(x => `<button class="pick ${CD.intensity===x.id?'on':''}" onclick="cdInt('${x.id}')"
+        style="${CD.intensity===x.id?`border-color:${x.color};color:${x.color}`:''}">${x.name}</button>`).join('')}
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-honey" onclick="saveCardio()">Save</button>
+    </div>`;
+
+  if (existing) h += `<button class="btn-danger" style="width:100%;margin-top:10px" onclick="clearCardio()">Remove this session</button>`;
+
+  document.getElementById('modalBody').innerHTML = h;
+}
+function cdKind(k) { CD.kind = k; paintCardio(); }
+function cdInt(v)  { CD.intensity = v; paintCardio(); }
+function cdAdd(v)  { CD.minutes = Math.max(0, CD.minutes + v); paintCardio(); }
+function saveCardio() {
+  if (!CD.kind)    { toast('Pick what you did'); return; }
+  if (!CD.minutes) { toast('Add a duration'); return; }
+  setCardio(CD.wk, CD.i, { kind: CD.kind, minutes: CD.minutes, intensity: CD.intensity });
+  closeModal(); refresh();
+  toast(`${CK(CD.kind).name} · ${CD.minutes} min`);
+}
+function clearCardio() {
+  setCardio(CD.wk, CD.i, null);
+  closeModal(); refresh();
+  toast('Session removed');
+}
+
+/* ══════════════════════════════════════════════════════
+   STRENGTH SESSION — saves on every edit
    ══════════════════════════════════════════════════════ */
 let SESS = { wk:null, i:0, exs:[] };
 
@@ -1089,13 +1251,38 @@ function openSession(wk, i) {
   document.getElementById('modal').classList.add('open');
 }
 
+/* Write straight through to storage — nothing is lost mid-workout */
+function persist(quiet) {
+  const clean = SESS.exs.filter(e => e.name);
+  S.sessions[SESS.wk] = S.sessions[SESS.wk] || {};
+  S.sessions[SESS.wk][SESS.i] = JSON.parse(JSON.stringify(clean));
+  clean.forEach(e => {
+    if (e.sets.some(s => s.reps || s.kg)) S.lastEx[e.name] = JSON.parse(JSON.stringify(e.sets));
+  });
+  log(SESS.wk, 'strength')[SESS.i] = clean.length ? 1 : 0;
+  save();
+  if (!quiet) flashSaved();
+}
+
+function flashSaved() {
+  const el = document.getElementById('saveFlag');
+  if (!el) return;
+  el.textContent = '✓ saved';
+  el.style.opacity = '1';
+  clearTimeout(flashSaved._t);
+  flashSaved._t = setTimeout(() => { el.style.opacity = '0.45'; el.textContent = 'saves as you go'; }, 1400);
+}
+
 function paintSession() {
   const ws = weekStart(keyToDate(SESS.wk));
   const d = new Date(ws); d.setDate(d.getDate() + SESS.i);
   const vol = Math.round(sessionVolume(SESS.exs));
 
   let html = `<div class="modal-title">🏋️ <span>Strength</span></div>
-    <div class="modal-sub">${DAYS[SESS.i]} ${d.getDate()} ${MON[d.getMonth()]} · ${vol.toLocaleString('en-GB')} kg volume</div>`;
+    <div class="modal-sub" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <span>${DAYS[SESS.i]} ${d.getDate()} ${MON[d.getMonth()]} · ${vol.toLocaleString('en-GB')} kg</span>
+      <span id="saveFlag" style="color:var(--green);font-weight:700;opacity:0.45;transition:opacity 0.3s">saves as you go</span>
+    </div>`;
 
   if (S.templates.length) {
     html += `<div class="tpl-row">
@@ -1120,11 +1307,12 @@ function paintSession() {
       </div>
       <div class="set-hdr"><span>#</span><span>Reps</span><span>Kg</span><span></span></div>`;
     ex.sets.forEach((st, si) => {
+      const filled = st.reps || st.kg;
       html += `<div class="set-row">
-        <span class="set-n">${si+1}</span>
+        <span class="set-n" style="${filled?'color:var(--green)':''}">${filled ? '✓' : si+1}</span>
         <input class="set-in" type="text" inputmode="numeric" value="${esc(st.reps ?? '')}" placeholder="—"
           onchange="setVal(${ei},${si},'reps',this.value)">
-        <input class="set-in" type="text" inputmode="text" value="${esc(st.kg ?? '')}" placeholder="—"
+        <input class="set-in" type="text" value="${esc(st.kg ?? '')}" placeholder="—"
           onchange="setVal(${ei},${si},'kg',this.value)">
         <button class="set-del" onclick="delSet(${ei},${si})" aria-label="Remove set">✕</button>
       </div>`;
@@ -1134,17 +1322,16 @@ function paintSession() {
 
   html += `<button class="mini-btn" onclick="addEx()">+ Add exercise</button>
     <div class="btn-row">
-      <button class="btn-ghost" onclick="quickSave()">Quick save</button>
-      <button class="btn-honey" onclick="saveSession()">Save session</button>
+      <button class="btn-honey" onclick="closeModal();refresh()">Done</button>
     </div>
     <p style="font-size:10px;color:var(--muted);margin-top:10px;line-height:1.6">
-      Kg accepts <b style="color:var(--text)">BW</b> or <b style="color:var(--text)">BW+20</b> for bodyweight work${S.bodyweight ? ` (yours: ${S.bodyweight} kg)` : ` — <span style="color:var(--honey)">set your bodyweight under More → Workout templates</span>`}.
-      Put an <b style="color:var(--text)">s</b> after a hold, like 30s, and it stays out of the volume total.<br>
-      Quick save marks the day done and flags it as detail pending, so it never looks like a zero later.
+      Every set is saved the moment you enter it, so you can log as you train and close the app between sets.<br>
+      Kg takes <b style="color:var(--text)">BW</b> or <b style="color:var(--text)">BW+20</b> for bodyweight work${S.bodyweight ? ` (yours: ${S.bodyweight} kg)` : ` — <span style="color:var(--honey)">set yours under More → Workout templates</span>`}.
+      Put an <b style="color:var(--text)">s</b> after a hold, like 30s, to keep it out of the volume total.
     </p>`;
 
   if (sessions(SESS.wk, SESS.i).length || log(SESS.wk,'strength')[SESS.i]) {
-    html += `<button class="btn-danger" style="width:100%;margin-top:10px" onclick="clearSession()">Clear this day</button>`;
+    html += `<button class="btn-danger" style="width:100%;margin-top:6px" onclick="clearSession()">Clear this day</button>`;
   }
 
   document.getElementById('modalBody').innerHTML = html;
@@ -1152,22 +1339,23 @@ function paintSession() {
 
 function setVal(ei, si, field, v) {
   SESS.exs[ei].sets[si][field] = String(v).trim() === '' ? null : String(v).trim();
+  persist();
   paintSession();
 }
 function addSet(ei) {
   const sets = SESS.exs[ei].sets;
   const last = sets[sets.length-1];
   sets.push(last ? { reps: last.reps, kg: last.kg } : { reps: null, kg: null });
-  paintSession();
+  persist(true); paintSession();
 }
-function delSet(ei, si) { SESS.exs[ei].sets.splice(si,1); paintSession(); }
-function delEx(ei) { SESS.exs.splice(ei,1); paintSession(); }
+function delSet(ei, si) { SESS.exs[ei].sets.splice(si,1); persist(true); paintSession(); }
+function delEx(ei) { SESS.exs.splice(ei,1); persist(true); paintSession(); }
 function addEx() {
   const name = prompt('Exercise name');
   if (!name || !name.trim()) return;
   const prev = S.lastEx[name.trim()];
   SESS.exs.push({ name: name.trim(), sets: prev ? JSON.parse(JSON.stringify(prev)) : [{reps:null,kg:null}] });
-  paintSession();
+  persist(true); paintSession();
 }
 function loadTemplate(tid) {
   const t = S.templates.find(x => x.id === tid);
@@ -1177,11 +1365,10 @@ function loadTemplate(tid) {
     const prev = S.lastEx[n];
     SESS.exs.push({ name: n, sets: prev ? JSON.parse(JSON.stringify(prev)) : [{reps:null,kg:null}] });
   });
-  paintSession();
+  persist(true); paintSession();
   toast(t.name + ' loaded');
 }
 function repeatLast() {
-  // find most recent day with a logged session
   const keys = Object.keys(S.sessions).sort().reverse();
   for (const wk of keys) {
     const dd = S.sessions[wk];
@@ -1190,7 +1377,7 @@ function repeatLast() {
       if (wk === SESS.wk && i === SESS.i) continue;
       if (dd[i] && dd[i].length) {
         SESS.exs = JSON.parse(JSON.stringify(dd[i]));
-        paintSession();
+        persist(true); paintSession();
         toast('Last session copied');
         return;
       }
@@ -1198,29 +1385,9 @@ function repeatLast() {
   }
   toast('No previous session yet');
 }
-function saveSession() {
-  const clean = SESS.exs.filter(e => e.name && e.sets.length);
-  S.sessions[SESS.wk] = S.sessions[SESS.wk] || {};
-  S.sessions[SESS.wk][SESS.i] = clean;
-  clean.forEach(e => { S.lastEx[e.name] = JSON.parse(JSON.stringify(e.sets)); });
-  const l = log(SESS.wk, 'strength');
-  l[SESS.i] = clean.length ? 1 : 0;
-  if (S.partial[SESS.wk]) delete S.partial[SESS.wk][SESS.i];
-  save(); closeModal(); refresh();
-  toast(clean.length ? 'Session saved' : 'Day cleared');
-}
-function quickSave() {
-  const l = log(SESS.wk, 'strength');
-  l[SESS.i] = 1;
-  S.partial[SESS.wk] = S.partial[SESS.wk] || {};
-  S.partial[SESS.wk][SESS.i] = true;
-  save(); closeModal(); refresh();
-  toast('Marked done — detail pending');
-}
 function clearSession() {
   if (!confirm('Clear this training day?')) return;
   if (S.sessions[SESS.wk]) delete S.sessions[SESS.wk][SESS.i];
-  if (S.partial[SESS.wk]) delete S.partial[SESS.wk][SESS.i];
   log(SESS.wk,'strength')[SESS.i] = 0;
   save(); closeModal(); refresh();
   toast('Day cleared');
@@ -1449,44 +1616,50 @@ function weekBody(wk, ed) {
     h += `<div class="pw-cat" style="color:${cat.color}">${cat.icon} ${cat.name}</div>`;
     cat.goals.forEach(g => {
       const a = ach(wk, g.id);
-      const d = days(wk, g.id), mn = getMin(wk, g.id);
-      const qs = qtySum(wk, g.id), qt = getQtyT(wk, g.id);
+      const [have, goal] = prog(wk, g.id);
+      const d = days(wk, g.id);
+      const qs = qtySum(wk, g.id);
       const note = getNote(wk, g.id);
       const scored = isScored(g);
+      const byQty = g.target === 'quantity';
 
       let right;
       if (!scored) right = `<b style="color:var(--life)">${fmtQty(qs, g.unit)}</b>`;
-      else if (g.type === 'quantity') right = `${ACH_EMOJI[a]} ${d}/${mn} · ${fmtQty(qs,g.unit)}`;
-      else if (g.type === 'detail') right = `${ACH_EMOJI[a]} ${d}/${mn} · ${weekVolume(wk).toLocaleString('en-GB')}kg`;
-      else right = `${ACH_EMOJI[a]} ${d}/${mn}`;
+      else if (g.type === 'cardio') right = `${ACH_EMOJI[a]} ${have}/${goal} · ${cardioMinutes(wk)}min`;
+      else if (g.type === 'detail') right = `${ACH_EMOJI[a]} ${have}/${goal} · ${weekVolume(wk).toLocaleString('en-GB')}kg`;
+      else if (byQty) right = `${ACH_EMOJI[a]} ${fmtQty(have,g.unit)}/${fmtQty(goal,g.unit)} · ${d}d`;
+      else if (g.type === 'quantity') right = `${ACH_EMOJI[a]} ${have}/${goal} · ${fmtQty(qs,g.unit)}`;
+      else right = `${ACH_EMOJI[a]} ${have}/${goal}`;
 
       h += `<div class="pw-g"><span style="font-size:15px">${g.icon}</span>
         <span class="pw-gn">${g.name}</span><span class="pw-gr">${right}</span></div>`;
 
-      if (ed) {
-        const l = log(wk, g.id), q = qty(wk, g.id);
-        h += `<div class="dots" style="margin-bottom:8px">`;
-        for (let i = 0; i < 7; i++) {
-          const v = q[i] || 0;
-          let cls = 'dot', inner = '<span class="pip"></span>';
-          if (g.type === 'quantity' || g.type === 'hours') {
-            cls += (g.type === 'hours' ? ' hours' : ' qty') + (v > 0 ? ' has' : '');
-            if (v > 0) inner = `<span>${fmtQty(v, g.unit)}</span>`;
-          } else if (l[i]) cls += ' done';
-          const handler = (g.type === 'quantity' || g.type === 'hours')
-            ? `openQP('${g.id}',${i},'${wk}')`
-            : g.type === 'detail' ? `openSession('${wk}',${i})` : `tickPast('${wk}','${g.id}',${i})`;
-          h += `<div class="dot-wrap"><span class="dot-lbl">${DAYS[i][0]}</span>
-            <button class="${cls}" onclick="${handler}">${inner}</button></div>`;
+      // cardio detail lines
+      if (g.type === 'cardio') {
+        const cd = S.cardio[wk] || {};
+        const idxs = Object.keys(cd).map(Number).sort((a,b)=>a-b);
+        if (idxs.length) {
+          h += `<div style="display:flex;gap:5px;flex-wrap:wrap;padding:2px 0 6px">`;
+          idxs.forEach(i => {
+            const c = cd[i];
+            h += `<span class="cardio-tag" style="border-color:${IN(c.intensity).color}40;color:${IN(c.intensity).color}">
+              ${CK(c.kind).icon} ${DAYS[i]} ${c.minutes}m</span>`;
+          });
+          h += `</div>`;
         }
-        h += `</div>`;
+      }
+
+      if (ed) {
+        h += `<div class="dots" style="margin-bottom:8px">${dotRowHTML(g, wk, null, awayArr(wk))}</div>`;
         if (scored) {
+          const lbl = byQty ? `${g.unit} target` : 'Days target';
+          const fn  = byQty ? 'bumpQty' : 'bumpMin';
           h += `<div style="display:flex;align-items:center;justify-content:space-between;padding:2px 0 10px">
-            <span style="font-size:10.5px;color:var(--muted)">Days target</span>
+            <span style="font-size:10.5px;color:var(--muted)">${lbl}</span>
             <div class="rv-ctrl">
-              <button class="rv-btn" onclick="bumpMin('${wk}','${g.id}',-1)">−</button>
-              <span class="rv-val" id="pm_${wk}_${g.id}">${mn}</span>
-              <button class="rv-btn" onclick="bumpMin('${wk}','${g.id}',1)">+</button>
+              <button class="rv-btn" onclick="${fn}('${wk}','${g.id}',-1)">−</button>
+              <span class="rv-val" id="pm_${wk}_${g.id}">${goal}</span>
+              <button class="rv-btn" onclick="${fn}('${wk}','${g.id}',1)">+</button>
             </div></div>`;
         }
       }
@@ -1526,6 +1699,13 @@ function bumpMin(wk, id, d) {
   setMin(wk, id, getMin(wk, id) + d);
   const el = document.getElementById(`pm_${wk}_${id}`);
   if (el) el.textContent = getMin(wk, id);
+}
+function bumpQty(wk, id, dir) {
+  const g = G(id);
+  const step = g.unit === 'minutes' ? 15 : g.unit === 'pages' ? 5 : 1;
+  setQtyT(wk, id, getQtyT(wk, id) + dir * step);
+  const el = document.getElementById(`pm_${wk}_${id}`);
+  if (el) el.textContent = getQtyT(wk, id);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1581,11 +1761,11 @@ function quarterPanel(tab, q, y) {
     if (awayDays(wk) > 0) holWeeks++;
     let ok = true, any = false;
     scoped.forEach(g => {
-      const mn = getMin(wk, g.id), d = days(wk, g.id);
-      if (mn > 0) {
-        any = true; target += mn; done += Math.min(d, mn);
-        if (d > mn) exceeded++;
-        if (d < mn) ok = false;
+      const [have, goal] = prog(wk, g.id);
+      if (goal > 0) {
+        any = true; target += goal; done += Math.min(have, goal);
+        if (have > goal) exceeded++;
+        if (have < goal) ok = false;
       }
     });
     if (any && ok) perfect++;
@@ -1614,18 +1794,20 @@ function quarterPanel(tab, q, y) {
       });
       const pct = tracked ? Math.round((m+x)/tracked*100) : 0;
 
-      // header line
       let sub;
       if (!scored) {
         const tot = past.reduce((s,wk) => s + qtySum(wk, g.id), 0);
         const avg = past.length ? tot/past.length : 0;
         sub = `${fmtQty(tot,g.unit)} total · ${fmtQty(avg,g.unit)}/wk avg`;
-      } else if (g.type === 'quantity') {
-        const tot = past.reduce((s,wk) => s + qtySum(wk, g.id), 0);
-        sub = `${m+x}/${tracked} wks · ${pct}% · ${fmtQty(tot,g.unit)}`;
+      } else if (g.type === 'cardio') {
+        const tot = past.reduce((s,wk) => s + cardioMinutes(wk), 0);
+        sub = `${m+x}/${tracked} wks · ${pct}% · ${Math.round(tot/60*10)/10}h`;
       } else if (g.type === 'detail') {
         const tot = past.reduce((s,wk) => s + weekVolume(wk), 0);
         sub = `${m+x}/${tracked} wks · ${pct}% · ${Math.round(tot/1000)}t volume`;
+      } else if (g.type === 'quantity') {
+        const tot = past.reduce((s,wk) => s + qtySum(wk, g.id), 0);
+        sub = `${m+x}/${tracked} wks · ${pct}% · ${fmtQty(tot,g.unit)}`;
       } else {
         sub = `${m+x}/${tracked} wks · ${pct}%`;
       }
@@ -1638,16 +1820,14 @@ function quarterPanel(tab, q, y) {
         wks.forEach(wk => {
           const fut = isFuture(wk);
           const a = fut ? 'future' : ach(wk, g.id);
-          const d = days(wk, g.id), mn = getMin(wk, g.id);
+          const [have, goal] = prog(wk, g.id);
+          const num = g.target === 'quantity' ? `${Math.round(have)}/${Math.round(goal)}` : `${have}/${goal}`;
           let cls = 'q-cell ', inner = '';
-          if (fut) { cls += 'wk-future'; }
+          if (fut) cls += 'wk-future';
           else if (a === 'skip') { cls += 'wk-skip'; inner = `<span class="q-sym">—</span>`; }
-          else if (a === 'live') { cls += 'wk-skip'; inner = `<span class="q-sym">·</span><span class="q-nm">${d}/${mn}</span>`; }
-          else {
-            cls += 'wk-' + a;
-            inner = `<span class="q-sym">${ACH_ICON[a]}</span><span class="q-nm">${d}/${mn}</span>`;
-          }
-          h += `<div class="${cls}" title="W${wkNum(keyToDate(wk))}: ${d}/${mn}">${inner}</div>`;
+          else if (a === 'live') { cls += 'wk-skip'; inner = `<span class="q-sym">·</span><span class="q-nm">${num}</span>`; }
+          else { cls += 'wk-' + a; inner = `<span class="q-sym">${ACH_ICON[a]}</span><span class="q-nm">${num}</span>`; }
+          h += `<div class="${cls}" title="W${wkNum(keyToDate(wk))}: ${num}">${inner}</div>`;
         });
         h += `</div><div class="q-tally">
           <span style="color:var(--star)">★ ${x}</span>
@@ -1657,9 +1837,10 @@ function quarterPanel(tab, q, y) {
         </div>`;
       }
 
-      // sparkline for quantity / hours / detail
-      if (g.type === 'quantity' || g.type === 'hours' || g.type === 'detail') {
-        const vals = past.map(wk => g.type === 'detail' ? weekVolume(wk) : qtySum(wk, g.id));
+      if (g.type !== 'tick') {
+        const vals = past.map(wk =>
+          g.type === 'detail' ? weekVolume(wk) :
+          g.type === 'cardio' ? cardioMinutes(wk) : qtySum(wk, g.id));
         const max = Math.max(...vals, 1);
         h += `<div class="spark">${vals.map(v =>
           `<div class="spark-b" style="height:${Math.max(2, v/max*34)}px;background:${v>0?cat.color:'var(--border)'};opacity:${v>0?0.75:1}"></div>`
@@ -1706,59 +1887,35 @@ function renderReview() {
     card.className = 'rv-card';
 
     cat.goals.forEach(g => {
-      const l = log(wk, g.id), q = qty(wk, g.id);
-      const d = days(wk, g.id), mn = getMin(wk, g.id);
-      const qt = getQtyT(wk, g.id), qs = qtySum(wk, g.id);
+      const d = days(wk, g.id);
+      const qs = qtySum(wk, g.id);
+      const [have, goal] = prog(wk, g.id);
       const scored = isScored(g);
+      const byQty = g.target === 'quantity';
 
       const row = document.createElement('div');
       row.className = 'rv-g';
 
-      let dots = `<div class="dots" style="margin:8px 0">`;
-      for (let i = 0; i < 7; i++) {
-        const fut = i > TODAY_I;
-        const v = q[i] || 0;
-        let cls = 'dot', inner = '<span class="pip"></span>';
-        if (g.type === 'quantity' || g.type === 'hours') {
-          cls += (g.type === 'hours' ? ' hours' : ' qty') + (v > 0 ? ' has' : '');
-          if (v > 0) inner = `<span>${fmtQty(v, g.unit)}</span>`;
-        } else if (l[i]) cls += ' done';
-        if (aw[i]) cls += ' away-d';
-        if (fut) cls += ' future';
-        const handler = fut ? '' :
-          (g.type === 'quantity' || g.type === 'hours') ? `openQP('${g.id}',${i},'${wk}')` :
-          g.type === 'detail' ? `openSession('${wk}',${i})` : `tick('${g.id}',${i},'${wk}');renderReview()`;
-        dots += `<div class="dot-wrap"><span class="dot-lbl">${DAYS[i][0]}</span>
-          <button class="${cls}" ${fut?'disabled':''} onclick="${handler}">${inner}</button></div>`;
-      }
-      dots += `</div>`;
+      const headline = g.type === 'tick' || g.type === 'detail' || g.type === 'cardio'
+        ? d : fmtQty(qs, g.unit);
 
       row.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
           <span style="font-size:13.5px;font-weight:700">${g.icon} ${g.name}</span>
-          <span style="font-family:'Playfair Display',serif;font-size:17px;color:var(--honey)">
-            ${(g.type==='quantity'||g.type==='hours') ? fmtQty(qs,g.unit) : d}
-          </span>
-        </div>${dots}`;
+          <span style="font-family:'Playfair Display',serif;font-size:17px;color:var(--honey)">${headline}</span>
+        </div>
+        <div class="dots" style="margin:8px 0">${dotRowHTML(g, wk, TODAY_I, aw)}</div>`;
 
       if (scored) {
+        const lbl = byQty ? `${g.unit[0].toUpperCase()+g.unit.slice(1)} target` : 'Days target · max 7';
+        const fn  = byQty ? 'bumpQtyLive' : 'bumpMinLive';
         row.innerHTML += `<div style="display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:10.5px;color:var(--muted)">Days target · max 7</span>
+          <span style="font-size:10.5px;color:var(--muted)">${lbl}</span>
           <div class="rv-ctrl">
-            <button class="rv-btn" onclick="bumpMinLive('${g.id}',-1)">−</button>
-            <span class="rv-val" id="rm_${g.id}">${mn}</span>
-            <button class="rv-btn" onclick="bumpMinLive('${g.id}',1)">+</button>
+            <button class="rv-btn" onclick="${fn}('${g.id}',-1)">−</button>
+            <span class="rv-val" id="rm_${g.id}">${goal}</span>
+            <button class="rv-btn" onclick="${fn}('${g.id}',1)">+</button>
           </div></div>`;
-
-        if (g.type === 'quantity') {
-          row.innerHTML += `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:9px">
-            <span style="font-size:10.5px;color:var(--muted)">${g.unit} target · optional</span>
-            <div class="rv-ctrl">
-              <button class="rv-btn" onclick="bumpQtyT('${g.id}',-1)">−</button>
-              <span class="rv-val" id="rq_${g.id}">${qt || '—'}</span>
-              <button class="rv-btn" onclick="bumpQtyT('${g.id}',1)">+</button>
-            </div></div>`;
-        }
       }
 
       card.appendChild(row);
@@ -1772,13 +1929,12 @@ function bumpMinLive(id, d) {
   const el = document.getElementById('rm_' + id);
   if (el) el.textContent = getMin(NOW_WK, id);
 }
-function bumpQtyT(id, dir) {
+function bumpQtyLive(id, dir) {
   const g = G(id);
-  const step = STEP[g.unit] || 1;
-  const mult = g.unit === 'minutes' ? 6 : g.unit === 'pages' ? 5 : 1;
-  setQtyT(NOW_WK, id, getQtyT(NOW_WK, id) + dir * step * mult);
-  const el = document.getElementById('rq_' + id);
-  if (el) el.textContent = getQtyT(NOW_WK, id) || '—';
+  const step = g.unit === 'minutes' ? 15 : g.unit === 'pages' ? 5 : 1;
+  setQtyT(NOW_WK, id, getQtyT(NOW_WK, id) + dir * step);
+  const el = document.getElementById('rm_' + id);
+  if (el) el.textContent = getQtyT(NOW_WK, id);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1789,11 +1945,12 @@ function openExport() {
     <div class="modal-sub">CSV opens straight in Excel</div>
     <div class="info-box">
       <b>Weekly summary</b> gives one row per week per goal — days, target, outcome, quantity.
-      <b>Training log</b> gives one row per set, for volume and progression analysis.
+      <b>Training log</b> gives one row per set. <b>Cardio log</b> gives one row per session with type, minutes and intensity.
     </div>
     <div style="display:flex;flex-direction:column;gap:9px">
       <button class="btn-honey" onclick="exportWeekly()">Weekly summary CSV</button>
       <button class="btn-honey" onclick="exportTraining()">Training log CSV</button>
+      <button class="btn-honey" onclick="exportCardio()">Cardio log CSV</button>
     </div>
     <div class="btn-row"><button class="btn-ghost" style="flex:1" onclick="closeModal()">Close</button></div>`);
 }
@@ -1819,17 +1976,19 @@ function allWeeks() {
 }
 
 function exportWeekly() {
-  const rows = [['week_number','week_start','category','goal','type','unit','days_done','days_target','outcome','quantity','quantity_target','volume_kg','days_away','note']];
+  const rows = [['week_number','week_start','category','goal','type','target_basis','unit','days_done','days_target','quantity','quantity_target','outcome','volume_kg','cardio_minutes','days_away','note']];
   allWeeks().forEach(wk => {
     const wn = wkNum(keyToDate(wk));
     GOALS.forEach(g => {
       const cat = CATS.find(c => c.id === g.catId);
       rows.push([
-        wn, wk, cat.name, g.name, g.type, g.unit || '',
-        days(wk, g.id), getMin(wk, g.id), ach(wk, g.id),
+        wn, wk, cat.name, g.name, g.type, g.target || 'days', g.unit || '',
+        days(wk, g.id), getMin(wk, g.id),
         (g.type==='quantity'||g.type==='hours') ? qtySum(wk,g.id) : '',
-        g.type==='quantity' ? (getQtyT(wk,g.id) || '') : '',
+        g.target === 'quantity' ? getQtyT(wk,g.id) : '',
+        ach(wk, g.id),
         g.type==='detail' ? weekVolume(wk) : '',
+        g.type==='cardio' ? cardioMinutes(wk) : '',
         awayDays(wk), getNote(wk, g.id)
       ]);
     });
@@ -1837,6 +1996,23 @@ function exportWeekly() {
   download(`hive_weekly_${new Date().toISOString().slice(0,10)}.csv`,
     rows.map(r => r.map(csvEsc).join(',')).join('\n'));
   toast('Weekly CSV downloaded');
+}
+
+function exportCardio() {
+  const rows = [['week_number','date','day','type','minutes','intensity']];
+  Object.keys(S.cardio).sort().forEach(wk => {
+    const ws = keyToDate(wk);
+    Object.keys(S.cardio[wk]).map(Number).sort((a,b)=>a-b).forEach(i => {
+      const c = S.cardio[wk][i];
+      const d = new Date(ws); d.setDate(d.getDate() + i);
+      const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      rows.push([wkNum(d), ds, DAYS[i], CK(c.kind).name, c.minutes, IN(c.intensity).name]);
+    });
+  });
+  if (rows.length === 1) { toast('No cardio logged yet'); return; }
+  download(`hive_cardio_${new Date().toISOString().slice(0,10)}.csv`,
+    rows.map(r => r.map(csvEsc).join(',')).join('\n'));
+  toast('Cardio CSV downloaded');
 }
 
 function exportTraining() {
