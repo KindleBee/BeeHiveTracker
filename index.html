@@ -310,7 +310,13 @@ header {
 }
 .ex-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
 .ex-name { font-size: 13.5px; font-weight: 700; flex: 1; min-width: 0; }
-.ex-last { font-size: 9.5px; color: var(--muted); margin-top: 2px; letter-spacing: 0.2px; }
+.ex-count { font-size: 9.5px; color: var(--muted); margin-top: 2px; }
+.ex-last {
+  font-size: 10px; color: var(--honey); opacity: 0.85;
+  margin: 2px 0 8px; letter-spacing: 0.2px; line-height: 1.5;
+  padding: 5px 8px; background: rgba(245,166,35,0.07);
+  border-radius: 7px; border-left: 2px solid rgba(245,166,35,0.35);
+}
 .ex-vol { font-size: 9.5px; color: var(--muted); white-space: nowrap; }
 .set-row { display: grid; grid-template-columns: 22px 1fr 1fr 26px; gap: 6px; align-items: center; margin-bottom: 5px; }
 .set-n { font-size: 10px; color: var(--muted); text-align: center; font-weight: 700; }
@@ -659,10 +665,10 @@ const GOAL_SET = {
       { id:'skill',    name:'Skill',    icon:'🤸', type:'tick',                    min:2, target:'days' },
     ]},
     { id:'learning', name:'Learning', icon:'📚', color:'var(--learning)', streak:true, goals:[
-      { id:'reading',  name:'Reading',  icon:'📖', type:'quantity', unit:'chapters', min:1, qty:2, target:'quantity', book:true },
-      { id:'french',   name:'French',   icon:'🇫🇷', type:'quantity', unit:'chapters', min:1, qty:2, target:'quantity' },
-      { id:'piano',    name:'Piano',    icon:'🎹', type:'quantity', unit:'minutes',  min:3, target:'days' },
-      { id:'lean',     name:'LEAN',     icon:'📐', type:'quantity', unit:'pages',    min:1, target:'days' },
+      { id:'reading',  name:'Reading',  icon:'📖', type:'quantity', unit:'chapters', min:1, qty:2,  target:'quantity', step:1, presets:[1,2,3,4], book:true },
+      { id:'french',   name:'French',   icon:'🇫🇷', type:'quantity', unit:'pages',    min:1, qty:4,  target:'quantity', step:1, presets:[1,2,4,6] },
+      { id:'piano',    name:'Piano',    icon:'🎹', type:'quantity', unit:'pages',    min:1, qty:20, target:'quantity', step:5, presets:[5,10,15,20] },
+      { id:'lean',     name:'LEAN',     icon:'📐', type:'quantity', unit:'pages',    min:1,         target:'days',     step:1, presets:[5,10,20,30] },
     ]},
     { id:'life', name:'Life', icon:'🌍', color:'var(--life)', streak:true, goals:[
       { id:'cooking',  name:'Own cooking', icon:'🍳', type:'tick',                    min:4, target:'days' },
@@ -689,8 +695,12 @@ const PRESETS = {
   minutes:  [15, 30, 45, 60],
   pages:    [5, 10, 20, 30],
   hours:    [0.5, 1, 2, 3],
+  km:       [0.5, 1, 2, 5],
 };
-const STEP = { chapters: 1, minutes: 5, pages: 1, hours: 0.5 };
+const STEP = { chapters: 1, minutes: 5, pages: 1, hours: 0.5, km: 1 };
+
+const gPresets = g => g.presets || PRESETS[g.unit] || [1,2,3,4];
+const gStep    = g => g.step   || STEP[g.unit]    || 1;
 
 /* ══════════════════════════════════════════════════════
    STATE
@@ -710,7 +720,6 @@ function blank() {
     books: { current: null, finished: [] },
     bodyweight: null,
     templates: defaultTemplates(),
-    lastEx: {},    // exerciseName -> [{reps,kg}]
   };
 }
 
@@ -1151,7 +1160,7 @@ function openQP(id, i, wk) {
   document.getElementById('qpSub').textContent = `${DAYS[i]} ${d.getDate()} ${MON[d.getMonth()]}`;
   document.getElementById('qpUnit').textContent = g.unit;
   const chips = document.getElementById('qpChips');
-  chips.innerHTML = (PRESETS[g.unit] || [1,2,3,4])
+  chips.innerHTML = gPresets(g)
     .map(v => `<button class="qp-chip" onclick="qpAdd(${v})">+${fmtQty(v, g.unit)}</button>`).join('');
   qpPaint();
   document.getElementById('qpOverlay').classList.add('open');
@@ -1163,7 +1172,7 @@ function qpPaint() {
 function qpAdd(v) { QP.val = Math.round((QP.val + v) * 100) / 100; qpPaint(); }
 function qpStep(dir) {
   const g = G(QP.id);
-  QP.val = Math.max(0, Math.round((QP.val + dir * (STEP[g.unit] || 1)) * 100) / 100);
+  QP.val = Math.max(0, Math.round((QP.val + dir * gStep(g)) * 100) / 100);
   qpPaint();
 }
 function qpClear() { QP.val = 0; qpPaint(); }
@@ -1230,8 +1239,8 @@ function paintCardio() {
       ${[0.5,1,2,5].map(v => `<button class="qp-chip" onclick="cdAdd(${v})">+${v}</button>`).join('')}
     </div>
     <div class="qp-step" style="margin-bottom:${needsLevel ? '18px' : '4px'}">
-      <button class="qp-sbtn" onclick="cdAdd(-0.5)">−</button>
-      <button class="qp-sbtn" onclick="cdAdd(0.5)">+</button>
+      <button class="qp-sbtn" onclick="cdAdd(-1)">−</button>
+      <button class="qp-sbtn" onclick="cdAdd(1)">+</button>
     </div>`;
 
   if (needsLevel) {
@@ -1302,9 +1311,6 @@ function persist(quiet) {
   const clean = SESS.exs.filter(e => e.name);
   S.sessions[SESS.wk] = S.sessions[SESS.wk] || {};
   S.sessions[SESS.wk][SESS.i] = JSON.parse(JSON.stringify(clean));
-  clean.forEach(e => {
-    if (e.sets.some(s => s.reps || s.kg)) S.lastEx[e.name] = JSON.parse(JSON.stringify(e.sets));
-  });
   log(SESS.wk, 'strength')[SESS.i] = clean.length ? 1 : 0;
   save();
   if (!quiet) flashSaved();
@@ -1319,18 +1325,34 @@ function flashSaved() {
   flashSaved._t = setTimeout(() => { el.style.opacity = '0.45'; el.textContent = 'saves as you go'; }, 1400);
 }
 
-/* Last session's numbers for an exercise, used as greyed-out hints */
-function hintFor(name, si) {
-  const prev = S.lastEx[name];
-  if (!prev || !prev[si]) return { reps:'', kg:'' };
-  return { reps: prev[si].reps ?? '', kg: prev[si].kg ?? '' };
+/* The most recent session containing this exercise, excluding the one open now.
+   Derived on the fly so editing today can never overwrite yesterday's reference. */
+function lastSessionFor(name, curWk, curDay) {
+  const wks = Object.keys(S.sessions).sort().reverse();
+  for (const wk of wks) {
+    if (wk > curWk) continue;
+    const dd = S.sessions[wk] || {};
+    const idxs = Object.keys(dd).map(Number).sort((a,b) => b-a);
+    for (const i of idxs) {
+      if (wk === curWk && i >= curDay) continue;
+      const ex = (dd[i] || []).find(e => e.name === name);
+      if (!ex) continue;
+      const sets = ex.sets.filter(s => s.reps || s.kg);
+      if (sets.length) {
+        const ws = keyToDate(wk);
+        const d = new Date(ws); d.setDate(d.getDate() + i);
+        return { sets, date: d, day: i, wk };
+      }
+    }
+  }
+  return null;
 }
-function hintLine(name) {
-  const prev = S.lastEx[name];
-  if (!prev || !prev.length) return '';
-  const parts = prev.filter(s => s.reps || s.kg).map(s => `${s.reps ?? '?'}×${s.kg ?? '?'}`);
-  if (!parts.length) return '';
-  return parts.slice(0, 5).join('  ');
+
+function lastLine(name, curWk, curDay) {
+  const prev = lastSessionFor(name, curWk, curDay);
+  if (!prev) return '';
+  const parts = prev.sets.map(s => `${s.reps ?? '?'}×${s.kg ?? '?'}`);
+  return `Last training: ${parts.join(' | ')}`;
 }
 
 function paintSession() {
@@ -1356,26 +1378,25 @@ function paintSession() {
 
   SESS.exs.forEach((ex, ei) => {
     const evol = Math.round(ex.sets.reduce((s,x) => s + setVolume(x), 0));
-    const last = hintLine(ex.name);
+    const last = lastLine(ex.name, SESS.wk, SESS.i);
     html += `<div class="ex-block">
       <div class="ex-head">
         <div style="flex:1;min-width:0">
           <div class="ex-name">${esc(ex.name)}</div>
-          ${last ? `<div class="ex-last">last: ${esc(last)}</div>` : ''}
         </div>
         <span class="ex-vol">${evol ? evol.toLocaleString('en-GB') + ' kg' : ''}</span>
         <button class="set-del" onclick="delEx(${ei})" aria-label="Remove exercise">✕</button>
       </div>
+      ${last ? `<div class="ex-last">${esc(last)}</div>` : ''}
       <div class="set-hdr"><span>#</span><span>Reps</span><span>Kg</span><span></span></div>`;
     ex.sets.forEach((st, si) => {
       const filled = st.reps || st.kg;
-      const hint = hintFor(ex.name, si);
       html += `<div class="set-row">
         <span class="set-n" style="${filled?'color:var(--green)':''}">${filled ? '✓' : si+1}</span>
-        <input class="set-in" type="text" inputmode="numeric" value="${esc(st.reps ?? '')}"
-          placeholder="${esc(hint.reps)}" onchange="setVal(${ei},${si},'reps',this.value)">
-        <input class="set-in" type="text" value="${esc(st.kg ?? '')}"
-          placeholder="${esc(hint.kg)}" onchange="setVal(${ei},${si},'kg',this.value)">
+        <input class="set-in" type="text" inputmode="numeric" value="${esc(st.reps ?? '')}" placeholder="reps"
+          onchange="setVal(${ei},${si},'reps',this.value)">
+        <input class="set-in" type="text" value="${esc(st.kg ?? '')}" placeholder="kg"
+          onchange="setVal(${ei},${si},'kg',this.value)">
         <button class="set-del" onclick="delSet(${ei},${si})" aria-label="Remove set">✕</button>
       </div>`;
     });
@@ -1387,8 +1408,7 @@ function paintSession() {
       <button class="btn-honey" onclick="closeModal();refresh()">Done</button>
     </div>
     <p style="font-size:10px;color:var(--muted);margin-top:10px;line-height:1.6">
-      Every set saves the moment you enter it, so you can log as you train.
-      Greyed numbers are what you did last time — type over them.<br>
+      Every set saves the moment you enter it. <b style="color:var(--text)">Add set</b> copies the set above, so a repeat is one tap.<br>
       Kg takes <b style="color:var(--text)">BW</b> or <b style="color:var(--text)">BW+20</b>${S.bodyweight ? ` (yours: ${S.bodyweight} kg)` : ` — <span style="color:var(--honey)">set yours under More → Workout templates</span>`}.
       Put an <b style="color:var(--text)">s</b> after a hold, like 30s, to keep it out of the volume total.
     </p>`;
@@ -1405,8 +1425,12 @@ function setVal(ei, si, field, v) {
   persist();
   paintSession();
 }
+
+/* Add set copies the one above it, so repeating a set is a single tap */
 function addSet(ei) {
-  SESS.exs[ei].sets.push({ reps: null, kg: null });
+  const sets = SESS.exs[ei].sets;
+  const prev = sets[sets.length - 1];
+  sets.push(prev ? { reps: prev.reps, kg: prev.kg } : { reps: null, kg: null });
   persist(true); paintSession();
 }
 function delSet(ei, si) { SESS.exs[ei].sets.splice(si,1); persist(true); paintSession(); }
@@ -1538,7 +1562,7 @@ function openTemplates() {
       <div class="ex-head">
         <div style="flex:1;min-width:0">
           <div class="ex-name">${esc(t.name)}</div>
-          <div class="ex-last">${t.exercises.length} exercises</div>
+          <div class="ex-count">${t.exercises.length} exercises</div>
         </div>
         <button class="pw-edit ${open?'on':''}" onclick="toggleTpl('${t.id}')">${open ? '✓ Done' : '✏️ Edit'}</button>
         <button class="set-del" onclick="delTemplate('${t.id}')" aria-label="Delete template">✕</button>
