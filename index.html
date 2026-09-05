@@ -311,6 +311,18 @@ header {
 .ex-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
 .ex-name { font-size: 13.5px; font-weight: 700; flex: 1; min-width: 0; }
 .ex-count { font-size: 9.5px; color: var(--muted); margin-top: 2px; }
+.tgt-row { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 11px; margin-bottom: 9px; }
+.tgt-head { display: flex; align-items: center; gap: 10px; }
+.tgt-name { font-size: 13.5px; font-weight: 700; }
+.tgt-unit { font-size: 10px; color: var(--muted); margin-top: 4px; }
+.tgt-btns { display: flex; gap: 7px; margin-top: 9px; }
+.tgt-btn {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border);
+  color: var(--muted); font-family: 'Nunito', sans-serif;
+  font-size: 10.5px; font-weight: 700; padding: 8px 6px;
+  border-radius: 9px; cursor: pointer;
+}
+.tgt-btn:active { border-color: var(--honey); color: var(--honey); }
 .ord-num {
   width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
   background: var(--surface2); border: 1px solid var(--border);
@@ -375,6 +387,15 @@ header {
 .pw.open { border-color: var(--honey); }
 .pw.open::before { background: var(--honey); }
 .pw.hol::before { background: var(--away); }
+.pw.live { border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.04); }
+.pw.live::before { background: var(--honey); box-shadow: 0 0 0 3px rgba(245,166,35,0.18); }
+.live-tag {
+  font-size: 8.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--honey); background: rgba(245,166,35,0.13);
+  border: 1px solid rgba(245,166,35,0.3);
+  border-radius: 8px; padding: 1px 6px; vertical-align: middle; margin-left: 4px;
+  font-family: 'Nunito', sans-serif;
+}
 .pw-h { display: flex; align-items: center; padding: 13px 13px 13px 15px; cursor: pointer; gap: 9px; }
 .pw-info { flex: 1; min-width: 0; }
 .pw-num { font-family: 'Playfair Display', serif; font-size: 16px; }
@@ -596,7 +617,7 @@ header {
 
 <!-- ═══ HISTORY ═══ -->
 <div class="view" id="v-past">
-  <div class="ov-title">Past <span>weeks</span></div>
+  <div class="ov-title">Your <span>weeks</span></div>
   <div class="ov-sub" id="pastSub"></div>
   <div id="pastList"></div>
 </div>
@@ -609,23 +630,16 @@ header {
   <div id="ovPanels"></div>
 </div>
 
-<!-- ═══ REVIEW ═══ -->
-<div class="view" id="v-review">
-  <div class="ov-title">This <span>week</span></div>
-  <div class="ov-sub">Fix logs and check your results</div>
-  <div id="reviewBody"></div>
-</div>
-
 <nav class="bnav">
   <button class="bnav-btn active" onclick="go('week',this)"><span class="bnav-ic">🍯</span>Week</button>
   <button class="bnav-btn" onclick="go('past',this)"><span class="bnav-ic">📜</span>History</button>
   <button class="bnav-btn" onclick="go('over',this)"><span class="bnav-ic">🔭</span>Overview</button>
-  <button class="bnav-btn" onclick="go('review',this)"><span class="bnav-ic">✏️</span>Review</button>
   <button class="bnav-btn" onclick="toggleMenu(this)"><span class="bnav-ic">•••</span>More</button>
 </nav>
 
 <div class="menu" id="menu">
   <div class="menu-h">More</div>
+  <button class="menu-i" onclick="openTargets();closeMenu()"><span>🎯</span> Targets</button>
   <button class="menu-i" onclick="openBooks();closeMenu()"><span>📚</span> Books</button>
   <button class="menu-i" onclick="openTemplates();closeMenu()"><span>🏋️</span> Workout templates</button>
   <button class="menu-i" onclick="openExport();closeMenu()"><span>📊</span> Export data</button>
@@ -1569,6 +1583,98 @@ function saveNote() {
 }
 
 /* ══════════════════════════════════════════════════════
+   TARGETS — set current, or rewrite history
+   ══════════════════════════════════════════════════════ */
+function openTargets() {
+  let h = `<div class="modal-title">🎯 <span>Targets</span></div>
+    <div class="modal-sub">Week ${wkNum(TODAY)} · changes carry into later weeks</div>
+    <div class="info-box">
+      The stepper sets this week's target and every week after it.
+      <b>Apply to all weeks</b> also rewrites every past week — use it when a goal's unit
+      or ambition changed and the old numbers no longer mean anything.
+    </div>`;
+
+  CATS.forEach(cat => {
+    h += `<div class="cat-header" style="margin:16px 0 8px">
+      <span>${cat.icon}</span>
+      <span class="cat-title" style="color:${cat.color};font-size:15px">${cat.name}</span></div>`;
+
+    cat.goals.filter(isScored).forEach(g => {
+      const byQty = g.target === 'quantity';
+      const cur = byQty ? getQtyT(NOW_WK, g.id) : getMin(NOW_WK, g.id);
+      const unit = byQty ? g.unit : (cur === 1 ? 'day' : 'days');
+      const overrides = countOverrides(g);
+
+      h += `<div class="tgt-row">
+        <div class="tgt-head">
+          <div style="flex:1;min-width:0">
+            <div class="tgt-name">${g.icon} ${g.name}</div>
+            <div class="ex-count">${overrides ? `${overrides} week${overrides>1?'s':''} set individually` : 'using the default everywhere'}</div>
+          </div>
+          <div class="rv-ctrl">
+            <button class="rv-btn" onclick="tgtBump('${g.id}',-1)">−</button>
+            <span class="rv-val" id="tg_${g.id}">${cur}</span>
+            <button class="rv-btn" onclick="tgtBump('${g.id}',1)">+</button>
+          </div>
+        </div>
+        <div class="tgt-unit">${unit} per week</div>
+        <div class="tgt-btns">
+          <button class="tgt-btn" onclick="tgtAll('${g.id}')">Apply to all weeks</button>
+          <button class="tgt-btn" onclick="tgtReset('${g.id}')">Reset to default</button>
+        </div>
+      </div>`;
+    });
+  });
+
+  h += `<div class="btn-row"><button class="btn-honey" style="flex:1" onclick="closeModal();refresh()">Done</button></div>`;
+  openModal(h);
+}
+
+function countOverrides(g) {
+  const store = g.target === 'quantity' ? S.qtyT : S.mins;
+  return Object.keys(store).filter(k => store[k] && store[k][g.id] !== undefined).length;
+}
+
+function tgtBump(id, dir) {
+  const g = G(id);
+  if (g.target === 'quantity') setQtyT(NOW_WK, id, getQtyT(NOW_WK, id) + dir * gStep(g));
+  else setMin(NOW_WK, id, getMin(NOW_WK, id) + dir);
+  const el = document.getElementById('tg_' + id);
+  if (el) el.textContent = g.target === 'quantity' ? getQtyT(NOW_WK, id) : getMin(NOW_WK, id);
+}
+
+/* Wipe every per-week override and pin the current value at the tracker start,
+   so carry-forward makes it the target for every week ever recorded. */
+function tgtAll(id) {
+  const g = G(id);
+  const byQty = g.target === 'quantity';
+  const val = byQty ? getQtyT(NOW_WK, id) : getMin(NOW_WK, id);
+  const label = byQty ? `${fmtQty(val, g.unit)}` : `${val} ${val===1?'day':'days'}`;
+  if (!confirm(`Set ${g.name} to ${label} per week for every week, past and future?\n\nThis overwrites any target you set on individual weeks. Your logged data is not touched.`)) return;
+
+  const store = byQty ? S.qtyT : S.mins;
+  Object.keys(store).forEach(k => { if (store[k]) delete store[k][id]; });
+  store[START_WK] = store[START_WK] || {};
+  store[START_WK][id] = val;
+  save();
+  openTargets();
+  toast(`${g.name} set everywhere`);
+}
+
+function tgtReset(id) {
+  const g = G(id);
+  const byQty = g.target === 'quantity';
+  const def = byQty ? (g.qty || 0) : g.min;
+  const label = byQty ? fmtQty(def, g.unit) : `${def} ${def===1?'day':'days'}`;
+  if (!confirm(`Reset ${g.name} to its default of ${label} per week, for every week?`)) return;
+  const store = byQty ? S.qtyT : S.mins;
+  Object.keys(store).forEach(k => { if (store[k]) delete store[k][id]; });
+  save();
+  openTargets();
+  toast(`${g.name} reset`);
+}
+
+/* ══════════════════════════════════════════════════════
    BOOKS
    ══════════════════════════════════════════════════════ */
 function openBooks() {
@@ -1753,52 +1859,59 @@ function renderPast() {
   while (wkKey(d) < NOW_WK) { wks.push(wkKey(d)); d.setDate(d.getDate() + 7); }
   wks.reverse();
 
-  document.getElementById('pastSub').textContent = `${wks.length} completed ${wks.length === 1 ? 'week' : 'weeks'}`;
+  document.getElementById('pastSub').textContent =
+    `This week, plus ${wks.length} completed ${wks.length === 1 ? 'week' : 'weeks'}`;
   const c = document.getElementById('pastList');
-
-  if (!wks.length) {
-    c.innerHTML = `<div class="empty"><div class="empty-ic">🐝</div>
-      <p>No finished weeks yet.<br>Your first one lands here on Monday.</p></div>`;
-    return;
-  }
 
   c.innerHTML = '<div class="tl" id="tl"></div>';
   const tl = document.getElementById('tl');
+  tl.appendChild(weekCard(NOW_WK));
   wks.forEach(wk => tl.appendChild(weekCard(wk)));
+
+  if (!wks.length) {
+    const note = document.createElement('div');
+    note.className = 'empty';
+    note.style.padding = '16px 20px 0';
+    note.innerHTML = `<p style="font-size:12px">Finished weeks stack up below this one.</p>`;
+    c.appendChild(note);
+  }
 }
 
 function weekCard(wk) {
   const ws = keyToDate(wk);
   const open = openWk === wk;
   const hol = awayDays(wk);
+  const live = isNow(wk);
 
   let f=0, m=0, x=0, p=0, done=0, target=0;
   GOALS.filter(isScored).forEach(g => {
     const a = ach(wk, g.id);
     if (a==='fail') f++; else if (a==='met') m++; else if (a==='exceed') x++; else if (a==='paused') p++;
-    const mn = getMin(wk, g.id);
-    if (mn > 0) { done += Math.min(days(wk,g.id), mn); target += mn; }
+    const [have, goal] = prog(wk, g.id);
+    if (goal > 0) { done += Math.min(have, goal); target += goal; }
   });
   const score = target ? Math.round(done / target * 100) : 0;
-  const col = score >= 100 ? 'var(--star)' : score >= 75 ? 'var(--green)' : score >= 45 ? 'var(--honey)' : 'var(--red)';
+  const col = live
+    ? (score >= 100 ? 'var(--star)' : 'var(--honey)')
+    : (score >= 100 ? 'var(--star)' : score >= 75 ? 'var(--green)' : score >= 45 ? 'var(--honey)' : 'var(--red)');
 
   const el = document.createElement('div');
-  el.className = 'pw' + (open ? ' open' : '') + (hol ? ' hol' : '');
+  el.className = 'pw' + (open ? ' open' : '') + (hol ? ' hol' : '') + (live ? ' live' : '');
   el.innerHTML = `
     <div class="pw-h" onclick="toggleWk('${wk}')">
       <div class="pw-info">
-        <div class="pw-num">Week ${wkNum(ws)}</div>
+        <div class="pw-num">Week ${wkNum(ws)}${live ? ' <span class="live-tag">now</span>' : ''}</div>
         <div class="pw-dates">${fmtRange(ws)} ${hol ? `<span class="hol-tag">✈ ${hol}d away</span>` : ''}</div>
       </div>
       <div>
         <div class="pw-score" style="color:${col}">${score}%</div>
-        <div class="pw-slbl">score</div>
+        <div class="pw-slbl">${live ? 'so far' : 'score'}</div>
       </div>
       <div class="pw-badges">
         ${x?`<span class="ach-badge ach-exceed">⭐${x}</span>`:''}
         ${m?`<span class="ach-badge ach-met">✓${m}</span>`:''}
         ${p?`<span class="ach-badge ach-paused">⏸${p}</span>`:''}
-        ${f?`<span class="ach-badge ach-fail">✕${f}</span>`:''}
+        ${f&&!live?`<span class="ach-badge ach-fail">✕${f}</span>`:''}
       </div>
       <span class="pw-chev">▼</span>
     </div>
@@ -1809,8 +1922,10 @@ function weekCard(wk) {
 
 function weekBody(wk, ed) {
   const hol = awayDays(wk);
+  const live = isNow(wk);
+  const maxDay = live ? TODAY_I : null;
   let h = `<div class="pw-bar-top">
-    <span style="font-size:10.5px;color:var(--muted)">${ed ? 'Tap days to fix logs, adjust targets below' : 'Full week breakdown'}</span>
+    <span style="font-size:10.5px;color:var(--muted)">${ed ? 'Tap a day to log or fix it' : (live ? 'How this week is going' : 'Full week breakdown')}</span>
     <button class="pw-edit ${ed?'on':''}" onclick="toggleEdit('${wk}')">${ed ? '✓ Done' : '✏️ Edit'}</button>
   </div>`;
 
@@ -1863,7 +1978,7 @@ function weekBody(wk, ed) {
       }
 
       if (ed) {
-        h += `<div class="dots" style="margin-bottom:8px">${dotRowHTML(g, wk, null, awayArr(wk))}</div>`;
+        h += `<div class="dots" style="margin-bottom:8px">${dotRowHTML(g, wk, maxDay, awayArr(wk))}</div>`;
         if (scored) {
           const lbl = byQty ? `${g.unit} target` : 'Days target';
           const fn  = byQty ? 'bumpQty' : 'bumpMin';
@@ -2317,144 +2432,6 @@ function drillCardio(q, y) {
   openModal(h);
 }
 
-/* ══════════════════════════════════════════════════════
-   REVIEW — current week
-   ══════════════════════════════════════════════════════ */
-function renderReview() {
-  const c = document.getElementById('reviewBody');
-  const wk = NOW_WK;
-  const aw = awayArr(wk);
-
-  const prevD = new Date(weekStart(TODAY)); prevD.setDate(prevD.getDate() - 7);
-  const prevWk = wkKey(prevD);
-  const hasPrev = prevWk >= START_WK;
-
-  c.innerHTML = `<div class="info-box">
-    <b>Week ${wkNum(TODAY)}</b> · ${fmtRange(weekStart(TODAY))}<br>
-    Tap a day to fix a log. Change a target and it carries into every week after, until you change it again.
-  </div>
-  <div class="away-strip" style="margin-bottom:18px">
-    <div class="away-label">Days <b>away or at an event</b></div>
-    <div class="away-toggles">
-      ${[0,1,2,3,4,5,6].map(i => `<button class="away-tog ${aw[i]?'on':''}" onclick="toggleAway(${i});renderReview()">${DAYS[i][0]}</button>`).join('')}
-    </div></div>`;
-
-  CATS.forEach(cat => {
-    const head = document.createElement('div');
-    head.className = 'cat-header';
-    head.innerHTML = `<span>${cat.icon}</span><span class="cat-title" style="color:${cat.color};font-size:15px">${cat.name}</span>`;
-    c.appendChild(head);
-
-    const card = document.createElement('div');
-    card.className = 'rv-card';
-
-    cat.goals.forEach(g => {
-      const d = days(wk, g.id);
-      const qs = qtySum(wk, g.id);
-      const [have, goal] = prog(wk, g.id);
-      const a = achLive(wk, g.id);
-      const scored = isScored(g);
-      const byQty = g.target === 'quantity';
-
-      const headline = (g.type === 'tick' || g.type === 'detail')
-        ? d : (g.type === 'cardio' ? d : fmtQty(qs, g.unit));
-
-      let status;
-      if (!scored) status = `${fmtQty(qs, g.unit)} logged`;
-      else if (goal === 0) status = 'no target';
-      else if (a === 'exceed') status = `<span style="color:var(--star)">⭐ ahead of target</span>`;
-      else if (a === 'met') status = `<span style="color:var(--green)">✓ target reached</span>`;
-      else status = `${byQty ? fmtQty(Math.max(0,goal-have), g.unit) : (goal-have)} still to go`;
-
-      const row = document.createElement('div');
-      row.className = 'rv-g';
-      let inner = `
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-          <span style="font-size:13.5px;font-weight:700">${g.icon} ${g.name}</span>
-          <span style="font-family:'Playfair Display',serif;font-size:17px;color:var(--honey)">${headline}</span>
-        </div>
-        <div class="dots" style="margin:8px 0 6px">${dotRowHTML(g, wk, TODAY_I, aw)}</div>
-        <div style="font-size:10.5px;color:var(--muted);margin-bottom:8px">${status}</div>`;
-
-      if (scored) {
-        const lbl = byQty ? `${g.unit} per week` : 'days per week';
-        const fn  = byQty ? 'bumpQtyLive' : 'bumpMinLive';
-        inner += `<div style="display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:10.5px;color:var(--muted)">Target · ${lbl}</span>
-          <div class="rv-ctrl">
-            <button class="rv-btn" onclick="${fn}('${g.id}',-1)">−</button>
-            <span class="rv-val" id="rm_${g.id}">${goal}</span>
-            <button class="rv-btn" onclick="${fn}('${g.id}',1)">+</button>
-          </div></div>`;
-      }
-
-      row.innerHTML = inner;
-      card.appendChild(row);
-    });
-
-    c.appendChild(card);
-  });
-
-  // Last week — results and target correction
-  if (hasPrev) {
-    const sec = document.createElement('div');
-    sec.style.cssText = 'margin-top:26px';
-    let inner = `<div class="ov-sub" style="margin-bottom:6px">Last week · W${wkNum(prevD)}</div>
-      <div class="info-box" style="margin-bottom:12px">
-        Forgot to set a target before the week started? Fix it here and it recalculates that week's result.
-      </div>
-      <div class="rv-card">`;
-
-    CATS.forEach(cat => {
-      cat.goals.filter(isScored).forEach(g => {
-        const a = ach(prevWk, g.id);
-        const [have, goal] = prog(prevWk, g.id);
-        const byQty = g.target === 'quantity';
-        const shown = byQty ? `${fmtQty(have,g.unit)}/${fmtQty(goal,g.unit)}` : `${have}/${goal}`;
-        const fn = byQty ? 'bumpQtyPrev' : 'bumpMinPrev';
-        inner += `<div class="rv-g" style="padding:9px 0">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <span style="font-size:12.5px;font-weight:600">${g.icon} ${g.name}</span>
-            <span style="font-size:12px;color:var(--muted)" id="pv_${g.id}">${ACH_EMOJI[a]} ${shown}</span>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
-            <span style="font-size:10px;color:var(--muted)">Target that week</span>
-            <div class="rv-ctrl">
-              <button class="rv-btn" onclick="${fn}('${prevWk}','${g.id}',-1)">−</button>
-              <span class="rv-val" id="pt_${g.id}">${goal}</span>
-              <button class="rv-btn" onclick="${fn}('${prevWk}','${g.id}',1)">+</button>
-            </div></div>
-        </div>`;
-      });
-    });
-    inner += `</div>`;
-    sec.innerHTML = inner;
-    c.appendChild(sec);
-  }
-}
-
-function bumpMinLive(id, d) {
-  setMin(NOW_WK, id, getMin(NOW_WK, id) + d);
-  const el = document.getElementById('rm_' + id);
-  if (el) el.textContent = getMin(NOW_WK, id);
-  renderReview();
-}
-function bumpQtyLive(id, dir) {
-  const g = G(id);
-  setQtyT(NOW_WK, id, getQtyT(NOW_WK, id) + dir * gStep(g));
-  const el = document.getElementById('rm_' + id);
-  if (el) el.textContent = getQtyT(NOW_WK, id);
-  renderReview();
-}
-function bumpMinPrev(wk, id, d) {
-  setMin(wk, id, getMin(wk, id) + d);
-  renderReview();
-}
-function bumpQtyPrev(wk, id, dir) {
-  const g = G(id);
-  setQtyT(wk, id, getQtyT(wk, id) + dir * gStep(g));
-  renderReview();
-}
 
 /* ══════════════════════════════════════════════════════
    EXPORT
@@ -2630,7 +2607,6 @@ function refresh() {
   if (view === 'week') renderWeek();
   else if (view === 'past') renderPast();
   else if (view === 'over') renderOver();
-  else if (view === 'review') renderReview();
   else renderWeek();
 }
 
