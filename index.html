@@ -329,11 +329,11 @@ header {
   color: var(--honey); font-size: 10px; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
 }
-.ord-btns { display: flex; gap: 3px; flex-shrink: 0; }
+.ord-btns { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .ord-btn {
-  width: 26px; height: 26px; border-radius: 7px;
+  width: 26px; height: 20px; border-radius: 6px;
   background: var(--surface2); border: 1px solid var(--border);
-  color: var(--muted); font-size: 13px; cursor: pointer;
+  color: var(--muted); font-size: 9px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
 .ord-btn:disabled { opacity: 0.25; cursor: default; }
@@ -958,6 +958,20 @@ function ach(wk, id) {
   return awayDays(wk) > 0 ? 'paused' : 'fail';
 }
 
+/* Every scored goal carries an equal share of the week.
+   A goal half-done contributes half its share; going over doesn't earn extra. */
+function weekScore(wk, goalList) {
+  const gs = (goalList || GOALS).filter(isScored);
+  let sum = 0, n = 0;
+  gs.forEach(g => {
+    const [have, goal] = prog(wk, g.id);
+    if (goal <= 0) return;            // untargeted weeks sit out
+    sum += Math.min(1, have / goal);
+    n++;
+  });
+  return n ? Math.round(sum / n * 100) : 0;
+}
+
 /* Progress pair for display: [current, target, unitLabel] */
 function prog(wk, id) {
   const g = G(id);
@@ -1436,17 +1450,17 @@ function lastPosition(name, curWk, curDay) {
   return null;
 }
 
-function toTop(ei) {
-  const [ex] = SESS.exs.splice(ei, 1);
-  SESS.exs.unshift(ex);
+function moveExUp(ei) {
+  if (ei === 0) return;
+  const e = SESS.exs;
+  [e[ei-1], e[ei]] = [e[ei], e[ei-1]];
   persist(true); paintSession();
-  toast(`${ex.name} first`);
 }
-function toBottom(ei) {
-  const [ex] = SESS.exs.splice(ei, 1);
-  SESS.exs.push(ex);
+function moveExDown(ei) {
+  const e = SESS.exs;
+  if (ei >= e.length - 1) return;
+  [e[ei+1], e[ei]] = [e[ei], e[ei+1]];
   persist(true); paintSession();
-  toast(`${ex.name} last`);
 }
 
 function paintSession() {
@@ -1483,8 +1497,8 @@ function paintSession() {
           ${prevPos !== null ? `<div class="ex-count">${moved ? `was #${prevPos} last time` : `#${prevPos} last time too`}</div>` : ''}
         </div>
         <div class="ord-btns">
-          <button class="ord-btn" ${ei===0?'disabled':''} onclick="toTop(${ei})" title="Do this first">⤒</button>
-          <button class="ord-btn" ${ei===SESS.exs.length-1?'disabled':''} onclick="toBottom(${ei})" title="Do this last">⤓</button>
+          <button class="ord-btn" ${ei===0?'disabled':''} onclick="moveExUp(${ei})" title="Move up">▲</button>
+          <button class="ord-btn" ${ei===SESS.exs.length-1?'disabled':''} onclick="moveExDown(${ei})" title="Move down">▼</button>
         </div>
         <button class="set-del" onclick="delEx(${ei})" aria-label="Remove exercise">✕</button>
       </div>
@@ -1883,14 +1897,12 @@ function weekCard(wk) {
   const hol = awayDays(wk);
   const live = isNow(wk);
 
-  let f=0, m=0, x=0, p=0, done=0, target=0;
+  let f=0, m=0, x=0, p=0;
   GOALS.filter(isScored).forEach(g => {
     const a = ach(wk, g.id);
     if (a==='fail') f++; else if (a==='met') m++; else if (a==='exceed') x++; else if (a==='paused') p++;
-    const [have, goal] = prog(wk, g.id);
-    if (goal > 0) { done += Math.min(have, goal); target += goal; }
   });
-  const score = target ? Math.round(done / target * 100) : 0;
+  const score = weekScore(wk);
   const col = live
     ? (score >= 100 ? 'var(--star)' : 'var(--honey)')
     : (score >= 100 ? 'var(--star)' : score >= 75 ? 'var(--green)' : score >= 45 ? 'var(--honey)' : 'var(--red)');
@@ -2084,24 +2096,25 @@ function quarterPanel(tab, q, y) {
   const cats = tab === 'all' ? CATS : CATS.filter(c => c.id === tab);
   const scoped = cats.flatMap(c => c.goals).filter(isScored);
 
-  let done=0, target=0, exceeded=0, perfect=0, holWeeks=0;
+  let exceeded=0, perfect=0, holWeeks=0, scoreSum=0;
   past.forEach(wk => {
     if (awayDays(wk) > 0) holWeeks++;
     let ok = true, any = false;
     scoped.forEach(g => {
       const [have, goal] = prog(wk, g.id);
       if (goal > 0) {
-        any = true; target += goal; done += Math.min(have, goal);
+        any = true;
         if (have > goal) exceeded++;
         if (have < goal) ok = false;
       }
     });
     if (any && ok) perfect++;
+    scoreSum += weekScore(wk, scoped);
   });
-  const rate = target ? Math.round(done/target*100) : 0;
+  const rate = past.length ? Math.round(scoreSum / past.length) : 0;
 
   let h = `<div class="q-stats">
-    <div class="q-stat"><div class="q-sv">${rate}%</div><div class="q-sl">Hit rate</div></div>
+    <div class="q-stat"><div class="q-sv">${rate}%</div><div class="q-sl">Avg week</div></div>
     <div class="q-stat"><div class="q-sv">${perfect}</div><div class="q-sl">Full weeks</div></div>
     <div class="q-stat"><div class="q-sv">${exceeded}</div><div class="q-sl">Exceeded</div></div>
     <div class="q-stat"><div class="q-sv">${holWeeks}</div><div class="q-sl">Away wks</div></div>
